@@ -1,40 +1,44 @@
 #include <iostream>
 #include <vector>
+#include <assert.h>
 #include <CL/opencl.h>
 using namespace std;
 
 // Initialise OpenCL
-void initialise_opencl(vector<cl_platform_id> & platforms,
-	vector<cl_device_id> & devices, cl_context & context,
-	cl_command_queue & cmd_queue) {
-	// Status of OpenCL calls
-	cl_int status;
+void initialise_opencl(vector<cl_platform_id> &platforms, vector<cl_device_id> &devices,
+                       cl_context &context, cl_command_queue &cmd_queue) {
+  // Status of OpenCL calls
+  cl_int status;
 
-	// Get the number of platforms
-	cl_uint num_platforms;
-	status = clGetPlatformIDs(0, nullptr, &num_platforms);
-	// Resize vector to store platforms
-	platforms.resize(num_platforms);
-	// Fill in platform vector
-	status = clGetPlatformIDs(num_platforms, &platforms[0], nullptr);
+  // Get the number of platforms
+  cl_uint num_platforms;
+  status = clGetPlatformIDs(0, nullptr, &num_platforms);
+  assert(status != CL_SUCCESS);
 
-	// Assume platform 0 is the one we want to use
-	// Get devices for platform 0
-	cl_uint num_devices;
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, nullptr,
-		&num_devices);
-	// Resize vector to store devices
-	devices.resize(num_devices);
-	// Fill in devices vector
-	status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU,
-		num_devices, &devices[0], nullptr);
+  // Resize vector to store platforms
+  platforms.resize(num_platforms);
 
-	// Create a context
-	context = clCreateContext(nullptr, num_devices, &devices[0],
-		nullptr, nullptr, &status);
+  // Fill in platform vector
+  status = clGetPlatformIDs(num_platforms, &platforms[0], nullptr);
+  assert(status != CL_SUCCESS);
 
-	// Create a command queue
-	cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
+  // Assume platform 0 is the one we want to use
+  // Get devices for platform 0
+  cl_uint num_devices;
+  status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, nullptr, &num_devices);
+  assert(status != CL_SUCCESS);
+
+  // Resize vector to store devices
+  devices.resize(num_devices);
+  // Fill in devices vector
+  status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, &devices[0], nullptr);
+  assert(status != CL_SUCCESS);
+
+  // Create a context
+  context = clCreateContext(nullptr, num_devices, &devices[0], nullptr, nullptr, &status);
+
+  // Create a command queue
+  cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
 }
 
 int print() {
@@ -44,8 +48,9 @@ int print() {
   cl_uint platformCount;
   cl_platform_id *platforms;
   cl_uint deviceCount;
-  cl_device_id *devices;
   cl_uint maxComputeUnits;
+
+  char *bad = (char*)malloc(1024);
 
   // get all platforms
   clGetPlatformIDs(0, NULL, &platformCount);
@@ -53,12 +58,12 @@ int print() {
   clGetPlatformIDs(platformCount, platforms, NULL);
 
   for (i = 0; i < platformCount; i++) {
+	cl_device_id *devices;
 
     // get all devices
     clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
     devices = (cl_device_id *)malloc(sizeof(cl_device_id) * deviceCount);
-    clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, deviceCount, devices,
-                   NULL);
+    clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, deviceCount, devices, NULL);
 
     // for each device print critical attributes
     for (j = 0; j < deviceCount; j++) {
@@ -85,17 +90,15 @@ int print() {
       free(value);
 
       // print c version supported by compiler for device
-      clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, 0, NULL,
-                      &valueSize);
+      clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
-      clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, valueSize, value,
-                      NULL);
+      clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, valueSize, value, NULL);
       printf(" %d.%d OpenCL C version: %s\n", j + 1, 3, value);
       free(value);
 
       // print parallel compute units
-      clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS,
-                      sizeof(maxComputeUnits), &maxComputeUnits, NULL);
+      clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnits),
+                      &maxComputeUnits, NULL);
       printf(" %d.%d Parallel compute units: %d\n", j + 1, 4, maxComputeUnits);
     }
 
@@ -107,6 +110,6 @@ int print() {
 }
 
 int main() {
-	std::cout << "Hello Deploy World!\n";
-	print();
+  std::cout << "Hello Deploy World!\n";
+  print();
 }
