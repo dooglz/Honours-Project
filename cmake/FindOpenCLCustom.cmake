@@ -117,16 +117,21 @@ if(WIN32)
 		"/usr/local/cuda"
 		"/opt/AMDAPP"
       PATH_SUFFIXES
+		nvidia
         "AMD APP/lib/x86_64"
-        lib/x86_64
-        lib/x64
-		lib64
-		lib
         OpenCL/common/lib/x64)
   endif()
 else()
-  find_library(OpenCL_LIBRARY
-    NAMES OpenCL)
+	find_library(OpenCL_LIBRARY
+		NAMES 
+			OpenCL
+		PATHS
+			ENV LD_LIBRARY_PATH
+			ENV OpenCL_LIBPATH
+			/usr
+		PATH_SUFFIXES
+			nvidia
+	)
 endif()
 
 set(OpenCL_LIBRARIES ${OpenCL_LIBRARY})
