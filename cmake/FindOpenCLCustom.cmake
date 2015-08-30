@@ -33,26 +33,35 @@
 #  License text for the above reference.)
 
 function(_FIND_OPENCL_VERSION)
+  include(CheckCXXSymbolExists)
   include(CheckSymbolExists)
   include(CMakePushCheckState)
+  
   set(CMAKE_REQUIRED_QUIET ${OpenCL_FIND_QUIETLY})
 
   CMAKE_PUSH_CHECK_STATE()
-  foreach(VERSION "2_0" "1_2" "1_1" "1_0")
+  foreach(VERSION "2_1" "2_0" "1_2" "1_1" "1_0")
     set(CMAKE_REQUIRED_INCLUDES "${OpenCL_INCLUDE_DIR}")
-
     if(APPLE)
       CHECK_SYMBOL_EXISTS(
         CL_VERSION_${VERSION}
         "${OpenCL_INCLUDE_DIR}/OpenCL/cl.h"
         OPENCL_VERSION_${VERSION})
     else()
-      CHECK_SYMBOL_EXISTS(
-        CL_VERSION_${VERSION}
-        "${OpenCL_INCLUDE_DIR}/CL/cl.h"
-        OPENCL_VERSION_${VERSION})
+		check_cxx_symbol_exists(
+			CL_VERSION_${VERSION}
+			"${OpenCL_INCLUDE_DIR}/CL/cl.h"
+			OPENCL_VERSION_${VERSION}
+		)
+		if(!OPENCL_VERSION_${VERSION})
+			CHECK_SYMBOL_EXISTS(
+				CL_VERSION_${VERSION}
+				"${OpenCL_INCLUDE_DIR}/CL/cl.h"
+				CL_VERSION_${VERSION}
+			)
+		endif()
     endif()
-
+	
     if(OPENCL_VERSION_${VERSION})
       string(REPLACE "_" "." VERSION "${VERSION}")
       set(OpenCL_VERSION_STRING ${VERSION} PARENT_SCOPE)
@@ -82,11 +91,10 @@ find_path(OpenCL_INCLUDE_DIR
   PATH_SUFFIXES
     include
     OpenCL/common/inc
-    "AMD APP/include")
+    "AMD APP/include"
+	)
 
 _FIND_OPENCL_VERSION()
-
-message("yoyoyoyoy")
 
 if(WIN32)
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -109,16 +117,15 @@ if(WIN32)
       NAMES OpenCL
       PATHS
         ENV "PROGRAMFILES(X86)"
-        ENV AMDAPPSDKROOT
+		ENV AMDAPPSDKROOT
         ENV INTELOCLSDKROOT
         ENV CUDA_PATH
         ENV NVSDKCOMPUTE_ROOT
         ENV ATISTREAMSDKROOT
-		"/usr/local/cuda"
-		"/opt/AMDAPP"
       PATH_SUFFIXES
-		nvidia
         "AMD APP/lib/x86_64"
+		lib/x86_64
+		lib/x64
         OpenCL/common/lib/x64)
   endif()
 else()

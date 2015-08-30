@@ -50,15 +50,13 @@ int print() {
   cl_uint deviceCount;
   cl_uint maxComputeUnits;
 
-  char *bad = (char*)malloc(1024);
-
   // get all platforms
   clGetPlatformIDs(0, NULL, &platformCount);
   platforms = (cl_platform_id *)malloc(sizeof(cl_platform_id) * platformCount);
   clGetPlatformIDs(platformCount, platforms, NULL);
 
   for (i = 0; i < platformCount; i++) {
-	cl_device_id *devices;
+    cl_device_id *devices;
 
     // get all devices
     clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
