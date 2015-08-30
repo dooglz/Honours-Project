@@ -1,7 +1,7 @@
 #Project root
 cmake_minimum_required (VERSION 2.6)
 CMAKE_POLICY(SET CMP0012 NEW) 
-project (Honours)
+project (Honours CXX)
 
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
     MESSAGE( "64 bits compiler detected" )
@@ -15,7 +15,7 @@ else( CMAKE_SIZEOF_VOID_P EQUAL 8 )
 	SET( EX_PLATFORM_NAME_S "86" )
 endif( CMAKE_SIZEOF_VOID_P EQUAL 8 )
 
-if(!MSVC)
+if(NOT MSVC)
 	include(CheckCXXCompilerFlag)
 	CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 	CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
@@ -26,7 +26,7 @@ if(!MSVC)
 	else()
 		message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 	endif(COMPILER_SUPPORTS_CXX11)
-endif(!MSVC)
+endif(NOT MSVC)
 
 SET( CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG 	${CMAKE_BINARY_DIR}/bin_${EX_PLATFORM_NAME_S}_debug)
 SET( CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin_${EX_PLATFORM_NAME_S}_release)
