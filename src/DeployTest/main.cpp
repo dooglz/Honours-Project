@@ -2,6 +2,8 @@
 #include <vector>
 #include <assert.h>
 #include <CL/opencl.h>
+
+#include "opencl_utils.h"
 using namespace std;
 
 // Initialise OpenCL
@@ -58,46 +60,66 @@ int print() {
   for (i = 0; i < platformCount; i++) {
     cl_device_id *devices;
 
+	clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &valueSize);
+	value = (char *)malloc(valueSize);
+	clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, valueSize, value, NULL);
+	printf("%d. Platform: %s\n", i + 1, value);
+	free(value);
+
     // get all devices
     clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
     devices = (cl_device_id *)malloc(sizeof(cl_device_id) * deviceCount);
     clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, deviceCount, devices, NULL);
-
+	
     // for each device print critical attributes
     for (j = 0; j < deviceCount; j++) {
 
-      // print device name
       clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
       clGetDeviceInfo(devices[j], CL_DEVICE_NAME, valueSize, value, NULL);
-      printf("%d. Device: %s\n", j + 1, value);
+      printf(" %d. Device: %s\n", j + 1, value);
       free(value);
 
-      // print hardware device version
       clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
       clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, valueSize, value, NULL);
-      printf(" %d.%d Hardware version: %s\n", j + 1, 1, value);
+      printf("  %d.%d Hardware version: %s\n", j + 1, 1, value);
       free(value);
 
-      // print software driver version
       clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
       clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, valueSize, value, NULL);
-      printf(" %d.%d Software version: %s\n", j + 1, 2, value);
+      printf("  %d.%d Software version: %s\n", j + 1, 2, value);
       free(value);
 
-      // print c version supported by compiler for device
       clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
       clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, valueSize, value, NULL);
-      printf(" %d.%d OpenCL C version: %s\n", j + 1, 3, value);
+      printf("  %d.%d OpenCL C version: %s\n", j + 1, 3, value);
       free(value);
+
+	  clGetDeviceInfo(devices[j], CL_DEVICE_TYPE, 0, NULL, &valueSize);
+	  value = (char *)malloc(valueSize);
+	  clGetDeviceInfo(devices[j], CL_DEVICE_TYPE, valueSize, value, NULL);
+	  printf("  %d.%d OpenCL Device Type: %s\n", j + 1, 4, ocl::DeviceTypeString((cl_device_type)value).c_str());
+	  free(value);
+
+	  clGetDeviceInfo(devices[j], CL_DEVICE_IMAGE_SUPPORT, 0, NULL, &valueSize);
+	  value = (char *)malloc(valueSize);
+	  clGetDeviceInfo(devices[j], CL_DEVICE_IMAGE_SUPPORT, valueSize, value, NULL);
+	  printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
+	  free(value);
+
+	  cl_ulong q = 0;
+	  clGetDeviceInfo(devices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(q), &q, NULL);
+	  printf("  %d.%d Global memory (bytes): %s\n", j + 1, 6, readable_fs(q).c_str());
+	  clGetDeviceInfo(devices[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(q), &q, NULL);
+	  printf("  %d.%d Local memory (bytes): %s\n", j + 1, 7, readable_fs(q).c_str());
 
       // print parallel compute units
       clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnits),
                       &maxComputeUnits, NULL);
-      printf(" %d.%d Parallel compute units: %d\n", j + 1, 4, maxComputeUnits);
+      printf("  %d.%d Parallel compute units: %d\n", j + 1, 8, maxComputeUnits);
     }
 
     free(devices);
