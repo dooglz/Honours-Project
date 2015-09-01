@@ -21,7 +21,7 @@ namespace cl {
 const uint8_t Init();
 const std::string DeviceTypeString(const cl_device_type type);
 const uint8_t GetRecommendedDevices(const uint8_t count, std::vector<device> &devices);
-
+const void PrintInfo();
 }
 
 const std::string readable_fs(const unsigned int size);
