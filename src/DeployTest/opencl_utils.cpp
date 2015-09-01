@@ -32,44 +32,105 @@ const uint8_t GetRecommendedDevices(const uint8_t count, std::vector<device> &de
     return 1;
   }
   if (total_Devices < count) {
-		return GetRecommendedDevices(total_Devices, devices);
+    return GetRecommendedDevices(total_Devices, devices);
   }
   vector<device> fastdevices;
   GetFastestDevices(fastdevices);
   if (count == 1) {
-	  devices.push_back(fastdevices[0]);
-	  return 0;
+    devices.push_back(fastdevices[0]);
+    return 0;
   }
 
-  //try to find a pair
-  //split into platforms
+  // try to find a pair
+  // split into platforms
   vector<cl_platform_id> suitable_p;
   uint8_t d_max;
-  for (auto p : cl_platforms){
-	  cl_uint num_devices;
-	  cl_int status = clGetDeviceIDs(p, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
-	  assert(status != CL_SUCCESS);
-	  d_max = max(d_max, (uint8_t)num_devices);
-	  if (num_devices >= count){
-		  suitable_p.push_back(p);
-	  }
+  for (auto p : cl_platforms) {
+    cl_uint num_devices;
+    cl_int status = clGetDeviceIDs(p, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+    assert(status != CL_SUCCESS);
+    d_max = max(d_max, (uint8_t)num_devices);
+    if (num_devices >= count) {
+      suitable_p.push_back(p);
+    }
   }
-  if (suitable_p.size() == 0){
-	  //no platforms have count many Devices
-	  return GetRecommendedDevices(d_max, devices);
-  }
+  if (suitable_p.size() == 0) {
+    // no platforms have count many Devices
+    return GetRecommendedDevices(d_max, devices);
+  } else if (suitable_p.size() == 1) {
+    // just one platform that's suitable
+    cl_platform_id p = suitable_p[0];
+    cl_uint num_devices;
+    clGetDeviceIDs(p, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+    if (num_devices > count) {
+      // we have to choose who to leave out, go in order of speed
+      for (auto d : fastdevices) {
+        if (devices.size() == count) {
+          break;
+        }
+        if (d.platform == p) {
+          devices.push_back(d);
+        }
+      }
+      return 0;
+    } else if (num_devices == count) {
+      // just return this platform
+      for (auto d : fastdevices) {
+        if (d.platform == p) {
+          devices.push_back(d);
+        }
+      }
+      return 0;
+    }
+  } else if (suitable_p.size() >= 1) {
+    // now things get complicated
+    // order the platforms by total speed
+    //TODO: do all this in the init stage
+    uint8_t* score = new uint8_t[suitable_p.size()];
+    for (uint8_t i = 0; i < fastdevices.size(); i++)
+    {
+      device* d = &fastdevices[i];
+      for (uint8_t j = 0; j < suitable_p.size(); j++)
+      {
+        if (d->platform == suitable_p[j]) {
+          score[j] += fastdevices.size() - i;
+        }
+      }
+    }
+    //find the best scoring platform
+    uint8_t winner = 0;
+    for (uint8_t i = 1; i < suitable_p.size(); i++)
+    {
+      if (score[i] > score[winner]){ winner = i; }
+    }
+    delete[] score;
 
-  uint16_t i = 0;
-  for (auto dev : fastdevices){
-	  for (uint8_t j = 1; j < count; j++)
-	  {
-		  cl_uint num_devices;
-		  cl_int status = clGetDeviceIDs(cl_platforms[0], CL_DEVICE_TYPE_GPU, 0, nullptr, &num_devices);
-		  assert(status != CL_SUCCESS);
-	  }
-	  ++i;
+    cl_platform_id p = suitable_p[winner];
+    cl_uint num_devices;
+    clGetDeviceIDs(p, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+    if (num_devices > count) {
+      // we have to choose who to leave out, go in order of speed
+      for (auto d : fastdevices) {
+        if (devices.size() == count) {
+          break;
+        }
+        if (d.platform == p) {
+          devices.push_back(d);
+        }
+      }
+      return 0;
+    }
+    else if (num_devices == count) {
+      // just return this platform
+      for (auto d : fastdevices) {
+        if (d.platform == p) {
+          devices.push_back(d);
+        }
+      }
+      return 0;
+    }
   }
-
+  
   return 0;
 }
 
