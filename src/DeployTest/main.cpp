@@ -116,10 +116,25 @@ int print() {
 	  clGetDeviceInfo(devices[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(q), &q, NULL);
 	  printf("  %d.%d Local memory (bytes): %s\n", j + 1, 7, readable_fs(q).c_str());
 
+    cl_bool b = 0;
+    clGetDeviceInfo(devices[j], CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(b), &b, NULL);
+    printf("  %d.%d Unified memory: %s\n", j + 1, 8, b ? "True" : "False");
+
+    cl_uint u = 0;
+    clGetDeviceInfo(devices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(u), &u, NULL);
+    printf("  %d.%d Clock frequency (MHz): %u\n", j + 1, 9, u );
+
+    size_t t = 0;
+    clGetDeviceInfo(devices[j], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(t), &t, NULL);
+    printf("  %d.%d max work-group size %u\n", j + 1, 10, t);
+
+    clGetDeviceInfo(devices[j], CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(t), &t, NULL);
+    printf("  %d.%d timer resolution (ns) %u\n", j + 1, 11, t);
+
       // print parallel compute units
       clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnits),
                       &maxComputeUnits, NULL);
-      printf("  %d.%d Parallel compute units: %d\n", j + 1, 8, maxComputeUnits);
+      printf("  %d.%d Parallel compute units: %d\n", j + 12, 9, maxComputeUnits);
     }
 
     free(devices);
@@ -135,5 +150,9 @@ int main() {
   cl::Init();
   std::vector<cl::device> devices;
   cl::GetRecommendedDevices(7, devices);
-  std::cout << "bye!\n";
+  std::cout << "\nRecommended devices:\n";
+  for (auto dev : devices){
+    std::cout << dev.short_name << "\n";
+  }
+  std::cout << "\nbye!\n";
 }
