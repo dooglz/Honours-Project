@@ -5,19 +5,64 @@
 #include <assert.h>
 using namespace std;
 
-namespace ocl {
-int global_variable = 66;
-int total_Devices = 0;
-vector<cl_platform_id> cl_platforms;
+namespace cl {
+cl_uint total_num_devices;
+cl_uint total_num_platforms;
+vector<platform> platforms;
 vector<device> devices;
+
 const uint8_t Init() {
-  total_Devices = 0;
+  platforms.clear();
+  devices.clear();
+  total_num_platforms = 0;
+  total_num_devices = 0;
+
+  // Status of OpenCL calls
+  cl_int status;
+
+  // Get the number of platforms
+  status = clGetPlatformIDs(0, NULL, &total_num_platforms);
+  assert(status == CL_SUCCESS);
+
+  vector<cl_platform_id> platform_ids(total_num_platforms);
+
+  status = clGetPlatformIDs(total_num_platforms, &platform_ids[0], nullptr);
+  assert(status == CL_SUCCESS);
+
+  for (auto id : platform_ids) {
+
+    // Get platform devices
+    cl_uint num_devices;
+    status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+    assert(status == CL_SUCCESS);
+
+    vector<cl_device_id> devices_ids(num_devices);
+    status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, num_devices, &devices_ids[0], nullptr);
+    assert(status == CL_SUCCESS);
+    cl_uint total_cu = 0;
+
+    for (auto dev_id : devices_ids) {
+      //Get compute units and name info for each device
+      cl_uint cu = 0;
+      status = clGetDeviceInfo(dev_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &cu, NULL);
+      assert(status == CL_SUCCESS);
+      total_cu += cu;
+
+      devices.push_back(device{ dev_id, cu, id});
+      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
+    }
+    total_num_devices += num_devices;
+
+    platforms.push_back(platform{ id, total_cu, num_devices });
+    clGetPlatformInfo(id, CL_PLATFORM_NAME, 32, &platforms.back().short_name, NULL);
+  }
+
   return 0;
 }
 
 // return an array of cl_device_id ordered by speed
 const uint8_t GetFastestDevices(std::vector<device> &fastdevices) {
-  if (total_Devices < 1) {
+  if (total_num_devices < 1) {
     return 1;
   }
   fastdevices = devices;
@@ -28,11 +73,11 @@ const uint8_t GetFastestDevices(std::vector<device> &fastdevices) {
 }
 
 const uint8_t GetRecommendedDevices(const uint8_t count, std::vector<device> &devices) {
-  if (total_Devices < 1) {
+  if (total_num_devices < 1) {
     return 1;
   }
-  if (total_Devices < count) {
-    return GetRecommendedDevices(total_Devices, devices);
+  if (total_num_devices < count) {
+    return GetRecommendedDevices(total_num_devices, devices);
   }
   vector<device> fastdevices;
   GetFastestDevices(fastdevices);
@@ -44,14 +89,11 @@ const uint8_t GetRecommendedDevices(const uint8_t count, std::vector<device> &de
   // try to find a pair
   // split into platforms
   vector<cl_platform_id> suitable_p;
-  uint8_t d_max;
-  for (auto p : cl_platforms) {
-    cl_uint num_devices;
-    cl_int status = clGetDeviceIDs(p, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
-    assert(status != CL_SUCCESS);
-    d_max = max(d_max, (uint8_t)num_devices);
-    if (num_devices >= count) {
-      suitable_p.push_back(p);
+  uint16_t d_max = 0;
+  for (auto p : platforms) {
+    d_max = max(d_max, p.num_devices);
+    if (p.num_devices >= count) {
+      suitable_p.push_back(p.id);
     }
   }
   if (suitable_p.size() == 0) {

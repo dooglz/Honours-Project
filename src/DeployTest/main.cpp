@@ -101,7 +101,7 @@ int print() {
 	  clGetDeviceInfo(devices[j], CL_DEVICE_TYPE, 0, NULL, &valueSize);
 	  value = (char *)malloc(valueSize);
 	  clGetDeviceInfo(devices[j], CL_DEVICE_TYPE, valueSize, value, NULL);
-	  printf("  %d.%d OpenCL Device Type: %s\n", j + 1, 4, ocl::DeviceTypeString((cl_device_type)value).c_str());
+	  printf("  %d.%d OpenCL Device Type: %s\n", j + 1, 4, cl::DeviceTypeString((cl_device_type)value).c_str());
 	  free(value);
 
 	  clGetDeviceInfo(devices[j], CL_DEVICE_IMAGE_SUPPORT, 0, NULL, &valueSize);
@@ -132,4 +132,8 @@ int print() {
 int main() {
   std::cout << "Hello Deploy World!\n";
   print();
+  cl::Init();
+  std::vector<cl::device> devices;
+  cl::GetRecommendedDevices(7, devices);
+  std::cout << "bye!\n";
 }
