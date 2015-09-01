@@ -1,4 +1,6 @@
 #include "opencl_utils.h"
+#include <math.h>
+
 namespace ocl {
 int global_variable = 66;
 
