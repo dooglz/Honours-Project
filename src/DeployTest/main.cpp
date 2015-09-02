@@ -2,8 +2,13 @@
 #include <vector>
 #include <assert.h>
 #include <CL/opencl.h>
-
+//
 #include "opencl_utils.h"
+#include "sort.h"
+//for sleep
+#include <chrono>
+#include <thread>
+
 using namespace std;
 
 // Initialise OpenCL
@@ -55,5 +60,10 @@ int main() {
   for (auto dev : devices){
     std::cout << dev.short_name << "\n";
   }
+  Sort* srt = new Sort();
+  srt->Start(1001);
+  std::this_thread::sleep_for(std::chrono::seconds(6));
+  srt->Stop();
+  delete srt;
   std::cout << "\nbye!\n";
 }
