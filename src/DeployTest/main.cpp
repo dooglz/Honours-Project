@@ -5,7 +5,7 @@
 //
 #include "opencl_utils.h"
 #include "sort.h"
-//for sleep
+// for sleep
 #include <chrono>
 #include <thread>
 
@@ -47,9 +47,6 @@ void initialise_opencl(vector<cl_platform_id> &platforms, vector<cl_device_id> &
   // Create a command queue
   cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
 }
-
-
-
 int main() {
   std::cout << "Hello Deploy World!\n";
   cl::Init();
@@ -57,13 +54,14 @@ int main() {
   std::vector<cl::device> devices;
   cl::GetRecommendedDevices(7, devices);
   std::cout << "\nRecommended devices:\n";
-  for (auto dev : devices){
+  for (auto dev : devices) {
     std::cout << dev.short_name << "\n";
   }
-  Sort* srt = new Sort();
-  srt->Start(1001);
-  std::this_thread::sleep_for(std::chrono::seconds(6));
-  srt->Stop();
+  Sort *srt = new Sort();
+  srt->Start(1501);
+  //  std::this_thread::sleep_for(std::chrono::seconds(6));
+  while (srt->IsRunning()) {
+  }
   delete srt;
   std::cout << "\nbye!\n";
 }

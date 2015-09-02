@@ -1,7 +1,7 @@
 #pragma once
 #include "experiment.h"
 
-class Sort: public Experiment {
+class Sort : public Experiment {
 public:
   Sort();
   ~Sort();
@@ -12,5 +12,4 @@ public:
 
 private:
   void Work(uint16_t num_runs);
-
 };

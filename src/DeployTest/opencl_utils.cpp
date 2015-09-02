@@ -210,7 +210,9 @@ const void PrintInfo() {
     free(value);
 
     for (auto dev : devices) {
-      if (dev.platform != plat.id){ continue; }
+      if (dev.platform != plat.id) {
+        continue;
+      }
       clGetDeviceInfo(dev.id, CL_DEVICE_NAME, 0, NULL, &valueSize);
       value = (char *)malloc(valueSize);
       clGetDeviceInfo(dev.id, CL_DEVICE_NAME, valueSize, value, NULL);
