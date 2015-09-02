@@ -6,7 +6,7 @@ file( GLOB SRCS *.cpp *.h)
 add_executable(DeployTest ${SRCS})
 
 if(${OpenCL_FOUND})
-	target_link_libraries (DeployTest ${OpenCL_LIBRARIES})
+	target_link_libraries (DeployTest ${OpenCL_LIBRARIES} pthread)
 else(${OpenCL_FOUND}) 
 	MESSAGE( "no opencl lib" )
 	message( FATAL_ERROR "Could Not locate OpenCL Library, Exiting cmake" )

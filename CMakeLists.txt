@@ -1,7 +1,7 @@
 #Project root
 cmake_minimum_required (VERSION 2.6)
 CMAKE_POLICY(SET CMP0012 NEW) 
-project (Honours CXX)
+project (Honours C CXX)
 
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
     MESSAGE( "64 bits compiler detected" )
