@@ -4,6 +4,7 @@
 #include <thread>
 #include <stdio.h>
 #include <iostream>
+#include <math.h>
 using namespace std;
 Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 
