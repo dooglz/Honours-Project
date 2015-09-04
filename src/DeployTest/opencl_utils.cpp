@@ -28,7 +28,7 @@ const uint8_t Init() {
 
   status = clGetPlatformIDs(total_num_platforms, &platform_ids[0], nullptr);
   assert(status == CL_SUCCESS);
-
+  std::vector<device> p_devices;
   for (auto id : platform_ids) {
 
     // Get platform devices
@@ -48,12 +48,15 @@ const uint8_t Init() {
       assert(status == CL_SUCCESS);
       total_cu += cu;
 
-      devices.push_back(device{dev_id, cu, id});
-      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
+	  //TODO tidy
+	  p_devices.push_back(device{ dev_id, cu, id });
+	  devices.push_back(device{ dev_id, cu, id });
+	  clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &p_devices.back().short_name, NULL);
+	  clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
     }
     total_num_devices += num_devices;
 
-    platforms.push_back(platform{id, total_cu, num_devices});
+	platforms.push_back(platform{ id, total_cu, num_devices, "", p_devices});
     clGetPlatformInfo(id, CL_PLATFORM_NAME, 32, &platforms.back().short_name, NULL);
   }
 

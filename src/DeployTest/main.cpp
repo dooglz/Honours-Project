@@ -13,7 +13,14 @@
 
 using namespace std;
 
-enum STATE { CHOOSE, LOADIN, LOADOUT, WORK };
+enum STATE {
+  CHOOSE,
+  LOADIN,
+  LOADOUT,
+  WORK,
+  CHOOSEP,
+  CHOOSED,
+};
 
 // Initialise OpenCL
 void initialise_opencl(vector<cl_platform_id> &platforms, vector<cl_device_id> &devices,
@@ -102,66 +109,90 @@ int main() {
       }
       // double num = promptValidated<double, double>("Enter any number: ");
       // cout << "The number is " << num << endl << endl;
-      selectedExp =
-          promptValidated<int, int>("Choose an Experiment: ", [](int i) { return (i >= 0 && i <= 2); });
+      selectedExp = promptValidated<int, int>("Choose an Experiment: ",
+                                              [](int i) { return (i >= 0 && i <= 2); });
       if (selectedExp == 0) {
         run = false;
         break;
       }
-      selectedExp = selectedExp -1 ;
-      st = LOADIN;
+      selectedExp = selectedExp - 1;
+      st = CHOOSEP;
     } break;
-    case LOADIN:
-    {
-      cout << "\nLoading Experiment: " << exps[selectedExp]->name << std::endl;
-      cout << "Experiment requires a Minimum number of " << exps[selectedExp]->minCu << " devices, and a maximum of " << exps[selectedExp]->maxCU << std::endl;
+    case LOADIN: {
+
+    } break;
+
+    case CHOOSEP: {
+      cout << "Experiment requires a Minimum number of " << exps[selectedExp]->minCu
+           << " devices, and a maximum of " << exps[selectedExp]->maxCU << std::endl;
       cout << "Avaialble Platforms:" << std::endl;
       cout << "\t0\tCancel\n\t1\tUse Reccomended" << std::endl;
-      
-      for (size_t i = 0; i < cl::platforms.size(); i++)
-      {
-        cout << "\t" << i + 2 << "\t" << cl::platforms[i].short_name << "\t Devices:" << cl::platforms[i].num_devices << std::endl;
+
+      for (size_t i = 0; i < cl::platforms.size(); i++) {
+        cout << "\t" << i + 2 << "\t" << cl::platforms[i].short_name
+             << "\t Devices:" << cl::platforms[i].num_devices << std::endl;
       }
-    
-      selectedPlat = promptValidated<int, int>("Choose an Platform: ", [](int j) { return (j >= 0 && j <= (2 + cl::platforms.size())); });
+
+      selectedPlat = promptValidated<int, int>("Choose an Platform: ", [](int j) {
+        return (j >= 0 && j <= (2 + cl::platforms.size()));
+      });
       if (selectedPlat == 0) {
         st = CHOOSE;
         break;
       }
       selectedPlat = selectedPlat - 2;
+      st = CHOOSED;
+    } break;
+    case CHOOSED: {
 
-      cout << "Avaialble Devices:" << std::endl;
-      cout << "\t0\tCancel\n\t1\tUse Reccomended" << std::endl;
-
-      for (size_t i = 0; i < cl::platforms[selectedPlat].devices.size(); i++)
-      {
-        cout << "\t" << i + 2 << "\t" << cl::platforms[selectedPlat].devices[i].short_name << "\t CU:" << cl::platforms[selectedPlat].devices[i].computeUnits << std::endl;
-      }
-      uint8_t offset =  cl::platforms[selectedPlat].devices.size();
-      selectedDev = promptValidated<int, int>("Choose an Device: ", [offset](int j) { return (j >= 0 && j <= (2 + offset)); });
-
-      // reccomended
-      if (selectedDev == 1) {
-        st = CHOOSE;
-        // todo
-        break;
-      } else {
-        // choose another todo if applicabale
-        while (selectedDev != 0 || selectedDev != 1) {
-          cout << "Choose another Device?" << std::endl;
+      bool *selected = new bool[5];
+      std::fill(selected, selected + sizeof(selected) / sizeof(bool), 0);
+      uint8_t num_selected = 0;
+      selectedDev = 2; // just to get us in the loop.
+      while (selectedDev != 0 && selectedDev != 1) {
+        if (num_selected == 0) {
+          cout << "Avaialble Devices:" << std::endl;
+          cout << "\t0\tCancel\n\t1\tUse Reccomended" << std::endl;
+        } else {
+          cout << "Avaialble Devices:" << std::endl;
           cout << "\t0\tCancel\n\t1\tDone" << std::endl;
-          selectedDev = promptValidated<int, int>(
-              "Choose an Device: ", [offset](int j) { return (j >= 0 && j <= (2 + offset)); });
+        }
+        for (size_t i = 0; i < cl::platforms[selectedPlat].num_devices; i++) {
+          cout << "\t" << i + 2 << "\t" << cl::platforms[selectedPlat].devices[i].short_name
+               << "\t CU:" << cl::platforms[selectedPlat].devices[i].computeUnits;
+          if (selected[i] == true) {
+            cout << "\t Selected" << std::endl;
+          } else {
+            cout << std::endl;
+          }
+        }
+        uint8_t offset = cl::platforms[selectedPlat].num_devices;
+        selectedDev = promptValidated<int, int>(
+            "Choose a Device: ", [offset](int j) { return (j >= 0 && j <= (2 + offset)); });
+        if (selectedDev > 1) {
+          selected[selectedDev - 2] = !selected[selectedDev - 2];
+          if (selected[selectedDev - 2] == true) {
+            num_selected++;
+          } else {
+            num_selected--;
+          }
         }
       }
-
-      if (selectedDev == 0) {
+      delete[] selected;
+      if (selectedDev == 1) {
+        if (num_selected == 0) {
+          // use defaults
+        } else {
+          // load selected
+        }
+        st = CHOOSE;
+        break;
+      } else {
+        // Cancelled out
         st = CHOOSE;
         break;
       }
-
-    }
-      break;
+    } break;
     case LOADOUT:
       break;
     case WORK:
