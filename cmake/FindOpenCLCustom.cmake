@@ -76,6 +76,7 @@ function(_FIND_OPENCL_VERSION)
   CMAKE_POP_CHECK_STATE()
 endfunction()
 
+
 find_path(OpenCL_INCLUDE_DIR
   NAMES
     CL/cl.h OpenCL/cl.h
@@ -93,6 +94,19 @@ find_path(OpenCL_INCLUDE_DIR
     OpenCL/common/inc
     "AMD APP/include"
 	)
+
+find_path(AMD_OpenCL_INCLUDE_DIR
+  NAMES
+    CL/cl.h OpenCL/cl.h
+  PATHS
+    ENV AMDAPPSDKROOT
+    ENV INTELOCLSDKROOT
+    ENV ATISTREAMSDKROOT
+  PATH_SUFFIXES
+    include
+  NO_DEFAULT_PATH 
+ )
+MESSAGE("amd cl include dir: ${AMD_OpenCL_INCLUDE_DIR}")
 
 _FIND_OPENCL_VERSION()
 
@@ -135,10 +149,27 @@ else()
 		PATHS
 			ENV LD_LIBRARY_PATH
 			ENV OpenCL_LIBPATH
+                        ENV AMDAPPSDKROOT
+			ENV AMDAPPSDKROOT/lib/x86_64
 			/usr
 		PATH_SUFFIXES
 			nvidia
+                        lib
+                        lib/x86_64
 	)
+ find_library(AMD_OpenCL_LIBRARY
+                NAMES
+                        OpenCL
+                PATHS
+                        ENV AMDAPPSDKROOT
+                PATH_SUFFIXES
+                        lib
+                        lib/x86_64
+                NO_DEFAULT_PATH
+        )
+MESSAGE("amd cl link dir: ${AMD_OpenCL_LIBRARY}")
+
+
 endif()
 
 set(OpenCL_LIBRARIES ${OpenCL_LIBRARY})
