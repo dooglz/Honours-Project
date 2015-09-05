@@ -1,8 +1,8 @@
 #include "experiment.h"
 #include <thread>
 
-Experiment::Experiment(const uint16_t minCu, const uint16_t maxCU, const std::string name,
-                       const std::string description)
+Experiment::Experiment(const uint16_t minCu, const uint16_t maxCU, const std::string& name,
+                       const std::string& description)
     : minCu(minCu), maxCU(maxCU), name(name), description(description) {
   running = false;
   should_run = false;

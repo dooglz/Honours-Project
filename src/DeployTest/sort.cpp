@@ -24,7 +24,7 @@ void Sort::Work(uint16_t num_runs) {
   }
   while (ShouldRun() && runs < num_runs) {
     // printf(" thread Working\n");
-    uint8_t percentDone = floor(((float)runs / (float)num_runs) * 100.0f);
+    uint8_t percentDone = (uint8_t)(floor(((float)runs / (float)num_runs) * 100.0f));
     wprintf(L" %c\t%u\t%Percent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
     // if (runs % 5 == 0){ std::cout << "\r"; }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

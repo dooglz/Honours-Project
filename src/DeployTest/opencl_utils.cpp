@@ -252,10 +252,10 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout << "  "<< j + 1 << ".6 Global memory (bytes):" << readable_fs(ul) << std::endl;
+      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((uint16_t)ul) << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout <<"  "<< j + 1 << ".7 Local memory (bytes):" << readable_fs(ul) << std::endl;
+      cout << "  " << j + 1 << ".7 Local memory (bytes):" << readable_fs((uint16_t)ul) << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(b), &b, NULL);
       cout << "  " << j + 1 << ".8 Unified memory (bytes):" << (b ? "True" : "False") << std::endl;

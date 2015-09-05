@@ -94,9 +94,9 @@ int main() {
   exps[0] = new Sort();
   exps[1] = new Sort();
   bool run = true;
-  uint8_t selectedExp = 0;
-  uint8_t selectedPlat = 0;
-  uint8_t selectedDev = 0;
+  uint16_t selectedExp = 0;
+  uint16_t selectedPlat = 0;
+  uint16_t selectedDev = 0;
   // main loop
   while (run) {
     switch (st) {
@@ -133,7 +133,7 @@ int main() {
              << "\t Devices:" << cl::platforms[i].num_devices << std::endl;
       }
 
-      selectedPlat = promptValidated<int, int>("Choose an Platform: ", [](int j) {
+      selectedPlat = promptValidated<uint16_t, uint16_t>("Choose an Platform: ", [](uint16_t j) {
         return (j >= 0 && j <= (2 + cl::platforms.size()));
       });
       if (selectedPlat == 0) {
