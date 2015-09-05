@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <functional>
 #include <assert.h>
+#include <iostream>
 using namespace std;
 
 namespace cl {
@@ -75,7 +76,7 @@ const uint8_t GetFastestDevices(std::vector<device> &fastdevices) {
   return 0;
 }
 
-const uint8_t GetRecommendedDevices(const uint8_t count, std::vector<device> &devices) {
+const uint8_t GetRecommendedDevices(const uint16_t count, std::vector<device> &devices) {
   if (total_num_devices < 1) {
     return 1;
   }
@@ -209,7 +210,7 @@ const void PrintInfo() {
     clGetPlatformInfo(plat.id, CL_PLATFORM_NAME, 0, NULL, &valueSize);
     value = (char *)malloc(valueSize);
     clGetPlatformInfo(plat.id, CL_PLATFORM_NAME, valueSize, value, NULL);
-    printf("%d. Platform: %s\n", i + 1, value);
+    cout << i + 1 << ".6 Platform: " << value << std::endl;
     free(value);
 
     for (auto dev : devices) {
@@ -251,60 +252,28 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      printf("  %d.%d Global memory (bytes): %s\n", j + 1, 6, readable_fs(ul).c_str());
+      cout << "  "<< j + 1 << ".6 Global memory (bytes):" << readable_fs(ul) << std::endl;
+
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      printf("  %d.%d Local memory (bytes): %s\n", j + 1, 7, readable_fs(ul).c_str());
+      cout <<"  "<< j + 1 << ".7 Local memory (bytes):" << readable_fs(ul) << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(b), &b, NULL);
-      printf("  %d.%d Unified memory: %s\n", j + 1, 8, b ? "True" : "False");
+      cout << "  " << j + 1 << ".8 Unified memory (bytes):" << (b ? "True" : "False") << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(u), &u, NULL);
-      printf("  %d.%d Clock frequency (MHz): %u\n", j + 1, 9, u);
+      cout << "  " << j + 1 << ".9 clock frequency (MHz):" << u << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(t), &t, NULL);
-      printf("  %d.%d max work-group size %zu\n", j + 1, 10, t);
+      cout << "  " << j + 1 << ".10 max work-group size:" << t << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(t), &t, NULL);
-      printf("  %d.%d timer resolution (ns) %zu\n", j + 1, 11, t);
+      cout << "  " << j + 1 << ".11 timer resolution (ns):" << t << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(u), &u, NULL);
-      printf("  %d.%d Parallel compute units: %d\n", j + 1, 12, u);
-
+      cout << "  " << j + 1 << ".12 Parallel compute units:" << u << std::endl;
       ++j;
     }
     ++i;
   }
 }
-}
-
-const std::string readable_fs(const unsigned int sz /*in bytes*/) {
-  float size = (float)sz;
-  unsigned int kb = 1024;
-  unsigned int mb = kb * 1024;
-  unsigned int gb = mb * 1024;
-  std::string s = "";
-  float minus = 0;
-  if (size > gb) {
-    float a = floor(size / gb);
-    minus += a * gb;
-    s += std::to_string((int)a);
-    s += "GB, ";
-  }
-  if (size > mb) {
-    float a = floor((size - minus) / mb);
-    minus += a * mb;
-    s += std::to_string((int)a);
-    s += "MB, ";
-  }
-  if (size > kb) {
-    float a = floor((size - minus) / kb);
-    minus += a * kb;
-    s += std::to_string((int)a);
-    s += "KB, ";
-  }
-  s += std::to_string((int)(size - minus));
-  s += "B (";
-  s += std::to_string(sz);
-  s += ")";
-  return s;
 }

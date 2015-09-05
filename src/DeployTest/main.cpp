@@ -166,7 +166,7 @@ int main() {
             cout << std::endl;
           }
         }
-        uint8_t offset = cl::platforms[selectedPlat].num_devices;
+        uint16_t offset = cl::platforms[selectedPlat].num_devices;
         selectedDev = promptValidated<int, int>(
             "Choose a Device: ", [offset](int j) { return (j >= 0 && j <= (2 + offset)); });
         if (selectedDev > 1) {
