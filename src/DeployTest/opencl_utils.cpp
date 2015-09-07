@@ -12,7 +12,7 @@ cl_uint total_num_platforms;
 vector<platform> platforms;
 vector<device> devices;
 
-const uint8_t Init() {
+const unsigned int Init() {
   platforms.clear();
   devices.clear();
   total_num_platforms = 0;
@@ -50,8 +50,10 @@ const uint8_t Init() {
       total_cu += cu;
 
       // TODO tidy
-      p_devices.push_back(device{dev_id, cu, id});
-      devices.push_back(device{dev_id, cu, id});
+      p_devices.push_back(device{dev_id, id, cu});
+      devices.push_back(device{
+          dev_id, id, cu,
+      });
       clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &p_devices.back().short_name, NULL);
       clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
     }
@@ -65,7 +67,7 @@ const uint8_t Init() {
 }
 
 // return an array of cl_device_id ordered by speed
-const uint8_t GetFastestDevices(std::vector<device> &fastdevices) {
+const unsigned int GetFastestDevices(std::vector<device> &fastdevices) {
   if (total_num_devices < 1) {
     return 1;
   }
@@ -76,7 +78,7 @@ const uint8_t GetFastestDevices(std::vector<device> &fastdevices) {
   return 0;
 }
 
-const uint8_t GetRecommendedDevices(const uint16_t count, std::vector<device> &devices) {
+const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<device> &devices) {
   if (total_num_devices < 1) {
     return 1;
   }
@@ -93,7 +95,7 @@ const uint8_t GetRecommendedDevices(const uint16_t count, std::vector<device> &d
   // try to find a pair
   // split into platforms
   vector<cl_platform_id> suitable_p;
-  uint16_t d_max = 0;
+  unsigned int d_max = 0;
   for (auto p : platforms) {
     d_max = max(d_max, p.num_devices);
     if (p.num_devices >= count) {
@@ -132,18 +134,18 @@ const uint8_t GetRecommendedDevices(const uint16_t count, std::vector<device> &d
     // now things get complicated
     // order the platforms by total speed
     // TODO: do all this in the init stage
-    uint8_t *score = new uint8_t[suitable_p.size()];
-    for (uint8_t i = 0; i < fastdevices.size(); i++) {
+    unsigned int *score = new unsigned int[suitable_p.size()];
+    for (unsigned int i = 0; i < fastdevices.size(); i++) {
       device *d = &fastdevices[i];
-      for (uint8_t j = 0; j < suitable_p.size(); j++) {
+      for (unsigned int j = 0; j < suitable_p.size(); j++) {
         if (d->platform == suitable_p[j]) {
           score[j] += fastdevices.size() - i;
         }
       }
     }
     // find the best scoring platform
-    uint8_t winner = 0;
-    for (uint8_t i = 1; i < suitable_p.size(); i++) {
+    unsigned int winner = 0;
+    for (unsigned int i = 1; i < suitable_p.size(); i++) {
       if (score[i] > score[winner]) {
         winner = i;
       }
@@ -196,7 +198,7 @@ const std::string DeviceTypeString(const cl_device_type type) {
 }
 
 const void PrintInfo() {
-  uint8_t i = 0;
+  unsigned int i = 0;
   cl_uint u = 0;
   size_t t = 0;
   cl_bool b = 0;
@@ -204,7 +206,7 @@ const void PrintInfo() {
 
   size_t valueSize;
   for (auto plat : platforms) {
-    uint8_t j = 0;
+    unsigned int j = 0;
     char *value;
 
     clGetPlatformInfo(plat.id, CL_PLATFORM_NAME, 0, NULL, &valueSize);
@@ -252,11 +254,12 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((uint16_t)ul)
+      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((unsigned int)ul)
            << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout << "  " << j + 1 << ".7 Local memory (bytes):" << readable_fs((uint16_t)ul) << std::endl;
+      cout << "  " << j + 1 << ".7 Local memory (bytes):" << readable_fs((unsigned int)ul)
+           << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(b), &b, NULL);
       cout << "  " << j + 1 << ".8 Unified memory (bytes):" << (b ? "True" : "False") << std::endl;

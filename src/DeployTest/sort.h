@@ -5,11 +5,11 @@ class Sort : public Experiment {
 public:
   Sort();
   ~Sort();
-  uint16_t GetMinCu();
-  uint16_t GetMax();
+  unsigned int GetMinCu();
+  unsigned int GetMax();
   void Init(cl_context &context, std::vector<cl::device> &devices, cl::platform platform);
   void Shutdown();
 
 private:
-  void Work(uint16_t num_runs);
+  void Work(unsigned int num_runs);
 };

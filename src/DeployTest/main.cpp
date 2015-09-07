@@ -105,13 +105,17 @@ int main() {
   exps[0] = new Sort();
   exps[1] = new Sort();
   bool run = true;
-  uint16_t selectedExp = 0;
-  uint16_t selectedPlat = 0;
-  uint16_t selectedDev = 0;
+  unsigned int selectedExp = 0;
+  unsigned int selectedPlat = 0;
+  unsigned int selectedDev = 0;
   // main loop
+
   while (run) {
     switch (st) {
     case CHOOSE: {
+      selectedExp = 0;
+      selectedPlat = 0;
+      selectedDev = 0;
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
@@ -140,9 +144,10 @@ int main() {
              << "\t Devices:" << cl::platforms[i].num_devices << std::endl;
       }
 
-      selectedPlat = promptValidated<uint16_t, uint16_t>("Choose an Platform: ", [](uint16_t j) {
-        return (j >= 0 && j <= (2 + cl::platforms.size()));
-      });
+      selectedPlat =
+          promptValidated<unsigned int, unsigned int>("Choose an Platform: ", [](unsigned int j) {
+            return (j >= 0 && j <= (2 + cl::platforms.size()));
+          });
       if (selectedPlat == 0) {
         st = CHOOSE;
         break;
@@ -154,7 +159,7 @@ int main() {
 
       bool *selected = new bool[5];
       std::fill(selected, selected + sizeof(selected) / sizeof(bool), 0);
-      uint8_t num_selected = 0;
+      unsigned int num_selected = 0;
       selectedDev = 2; // just to get us in the loop.
       while (selectedDev != 0 && selectedDev != 1) {
         if (num_selected == 0) {
@@ -173,9 +178,10 @@ int main() {
             cout << std::endl;
           }
         }
-        uint16_t offset = cl::platforms[selectedPlat].num_devices;
-        selectedDev = promptValidated<int, int>(
-            "Choose a Device: ", [offset](int j) { return (j >= 0 && j <= (2 + offset)); });
+        unsigned int offset = cl::platforms[selectedPlat].num_devices;
+        selectedDev = promptValidated<int, int>("Choose a Device: ", [offset](unsigned int j) {
+          return (j >= 0 && j <= (2 + offset));
+        });
         if (selectedDev > 1) {
           selected[selectedDev - 2] = !selected[selectedDev - 2];
           if (selected[selectedDev - 2] == true) {
@@ -224,10 +230,7 @@ int main() {
     case WORK:
       if (exps[selectedExp]->IsRunning()) {
         // bare in mind that the program will block here.
-        int a = nopromptValidated<int, int>([](int j) {
-          // cout <<"J = "<< j << std::endl;
-          return (true);
-        });
+        int a = nopromptValidated<int, int>([](int j) { return (j > 0); });
         if (a == 0) {
           cout << "Stopping" << std::endl;
           exps[selectedExp]->Stop();
@@ -241,14 +244,6 @@ int main() {
   for (auto e : exps) {
     delete e;
   }
-  /*
 
-  Sort *srt = new Sort();
-  srt->Start(1501);
-  //  std::this_thread::sleep_for(std::chrono::seconds(6));
-  while (srt->IsRunning()) {
-  }
-  delete srt;
-  */
   std::cout << "\nbye!\n";
 }

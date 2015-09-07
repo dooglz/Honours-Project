@@ -1,4 +1,7 @@
 #include "utils.h"
+#include <chrono>
+#include <sstream>
+#include <iomanip>
 #include <math.h>
 
 const std::string readable_fs(const unsigned int sz /*in bytes*/) {
@@ -31,4 +34,13 @@ const std::string readable_fs(const unsigned int sz /*in bytes*/) {
   s += std::to_string(sz);
   s += ")";
   return s;
+}
+
+const std::string current_time_and_date() {
+  auto now = std::chrono::system_clock::now();
+  auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d_%H-%M-%S");
+  return ss.str();
 }
