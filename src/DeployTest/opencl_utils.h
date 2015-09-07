@@ -29,6 +29,8 @@ const uint8_t Init();
 const std::string DeviceTypeString(const cl_device_type type);
 const uint8_t GetRecommendedDevices(const uint16_t count, std::vector<device> &devices);
 const void PrintInfo();
+const cl_int GetContext(const std::vector<device> &devices, cl_context &context,
+                        cl_command_queue &cmd_queue);
 }
 
 const std::string readable_fs(const unsigned int size);

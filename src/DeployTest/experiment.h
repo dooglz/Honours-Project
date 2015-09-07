@@ -6,13 +6,14 @@
 #include <thread>
 class Experiment {
 public:
- // Experiment();
+  // Experiment();
   ~Experiment();
   const uint16_t minCu;
   const uint16_t maxCU;
   const std::string name;
   const std::string description;
-  virtual void Init(cl_context &context, std::vector<cl::device> &devices, cl::platform platform);
+  virtual void Init(cl_context &ctx, cl_command_queue &cq, std::vector<cl::device> &devices,
+                    cl::platform platform);
   virtual void Shutdown();
   bool IsRunning();
   bool ShouldRun();
@@ -20,8 +21,8 @@ public:
   virtual void Stop();
 
 protected:
-  Experiment(const uint16_t minCu, const uint16_t maxCU, const std::string& name,
-             const std::string& description);
+  Experiment(const uint16_t minCu, const uint16_t maxCU, const std::string &name,
+             const std::string &description);
   std::thread workThread;
   virtual void Work(uint16_t num_runs) = 0;
   bool should_run;

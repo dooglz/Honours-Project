@@ -49,15 +49,15 @@ const uint8_t Init() {
       assert(status == CL_SUCCESS);
       total_cu += cu;
 
-	  //TODO tidy
-	  p_devices.push_back(device{ dev_id, cu, id });
-	  devices.push_back(device{ dev_id, cu, id });
-	  clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &p_devices.back().short_name, NULL);
-	  clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
+      // TODO tidy
+      p_devices.push_back(device{dev_id, cu, id});
+      devices.push_back(device{dev_id, cu, id});
+      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &p_devices.back().short_name, NULL);
+      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
     }
     total_num_devices += num_devices;
 
-	platforms.push_back(platform{ id, total_cu, num_devices, "", p_devices});
+    platforms.push_back(platform{id, total_cu, num_devices, "", p_devices});
     clGetPlatformInfo(id, CL_PLATFORM_NAME, 32, &platforms.back().short_name, NULL);
   }
 
@@ -252,7 +252,8 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((uint16_t)ul) << std::endl;
+      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((uint16_t)ul)
+           << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
       cout << "  " << j + 1 << ".7 Local memory (bytes):" << readable_fs((uint16_t)ul) << std::endl;
@@ -275,5 +276,24 @@ const void PrintInfo() {
     }
     ++i;
   }
+}
+
+const cl_int GetContext(const std::vector<device> &devices, cl_context &context,
+                        cl_command_queue &cmd_queue) {
+  std::vector<cl_device_id> ids;
+  for (auto d : devices) {
+    ids.push_back(d.id);
+  }
+  cl_int status;
+  // Create a context
+  context = clCreateContext(nullptr, ids.size(), &ids[0], nullptr, nullptr, &status);
+  assert(status == CL_SUCCESS);
+
+  // Create a command queue
+  cmd_queue = clCreateCommandQueue(context, ids[0], 0, &status);
+  assert(status == CL_SUCCESS);
+  return status;
+
+  // cl_int clReleaseContext (	cl_context context)
 }
 }

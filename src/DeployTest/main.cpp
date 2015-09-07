@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <CL/opencl.h>
 //
+#include "utils.h"
 #include "opencl_utils.h"
 #include "sort.h"
 // for sleep
@@ -76,6 +77,16 @@ T promptValidated(const std::string &message,
   }
   return input;
 }
+template <class T, class U>
+T nopromptValidated(std::function<bool(U)> condition = [](...) { return true; }) {
+  T input;
+  std::string buf;
+  while (!(std::getline(std::cin, buf) && lexical_cast<T>(input, buf) && condition(input))) {
+    if (std::cin.eof())
+      throw std::runtime_error("End of file reached!");
+  }
+  return input;
+}
 
 int main() {
   // Initial
@@ -118,10 +129,6 @@ int main() {
       selectedExp = selectedExp - 1;
       st = CHOOSEP;
     } break;
-    case LOADIN: {
-
-    } break;
-
     case CHOOSEP: {
       cout << "Experiment requires a Minimum number of " << exps[selectedExp]->minCu
            << " devices, and a maximum of " << exps[selectedExp]->maxCU << std::endl;
@@ -178,14 +185,26 @@ int main() {
           }
         }
       }
+      std::vector<cl::device> sel_devices;
+
+      for (size_t i = 0; i < 5; i++) {
+        if (selected[i] == true) {
+          sel_devices.push_back(cl::platforms[selectedPlat].devices[i]);
+        }
+      }
       delete[] selected;
+
       if (selectedDev == 1) {
         if (num_selected == 0) {
           // use defaults
         } else {
           // load selected
+          cl_context context;
+          cl_command_queue cmd_queue;
+          GetContext(sel_devices, context, cmd_queue);
+          exps[selectedExp]->Init(context, cmd_queue, sel_devices, cl::platforms[selectedPlat]);
         }
-        st = CHOOSE;
+        st = LOADIN;
         break;
       } else {
         // Cancelled out
@@ -194,8 +213,28 @@ int main() {
       }
     } break;
     case LOADOUT:
+      cout << DASH50 << "\n Finished" << CLEARN << std::endl;
+      st = CHOOSE;
+      break;
+    case LOADIN:
+      cout << DASH50 << CLEARN "Starting, Type 0 to Quit \n" << DASH50 << std::endl;
+      exps[selectedExp]->Start(1000);
+      st = WORK;
       break;
     case WORK:
+      if (exps[selectedExp]->IsRunning()) {
+        // bare in mind that the program will block here.
+        int a = nopromptValidated<int, int>([](int j) {
+          // cout <<"J = "<< j << std::endl;
+          return (true);
+        });
+        if (a == 0) {
+          cout << "Stopping" << std::endl;
+          exps[selectedExp]->Stop();
+        }
+      } else {
+        st = LOADOUT;
+      }
       break;
     }
   }
