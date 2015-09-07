@@ -2,6 +2,7 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <ctime>
 #include <math.h>
 
 const std::string readable_fs(const unsigned int sz /*in bytes*/) {
