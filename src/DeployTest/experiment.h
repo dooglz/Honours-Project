@@ -48,7 +48,7 @@ protected:
   mutex running_mutex;    // protects running
 
   // print funcs
-  const void Experiment::PrintToCSV(const string &Collumn1, const string &collumn2,
+  const void Experiment::PrintToCSV(const string &collumn1, const string &collumn2,
                                     const vector<Timer> &times, const string &filename);
   const void Experiment::PrintToCSV(const vector<vector<string>> v, const string &filename);
 };
