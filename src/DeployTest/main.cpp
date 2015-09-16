@@ -158,7 +158,7 @@ int main() {
     case CHOOSED: {
 
       bool *selected = new bool[5];
-      std::fill(selected, selected + sizeof(selected) / sizeof(bool), 0);
+      std::fill(selected, selected + sizeof(selected) / sizeof(bool), false);
       unsigned int num_selected = 0;
       selectedDev = 2; // just to get us in the loop.
       while (selectedDev != 0 && selectedDev != 1) {

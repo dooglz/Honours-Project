@@ -9,14 +9,20 @@
 Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 
 Sort::~Sort() {}
+
+static cl_context ctx;
+static vector<cl::device> CtxDevices;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
-void Sort::Init(cl_context &context, vector<cl::device> &devices, cl::platform platform) {}
+void Sort::Init(cl_context &context, vector<cl::device> &devices, cl::platform platform) { CtxDevices = devices; ctx = context; }
 void Sort::Shutdown() {}
 
 void Sort::Work(unsigned int num_runs) {
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Sort Test, Thread(" << tid << ")\n";
+
+  auto prog = cl::load_program("hello.cl", ctx, CtxDevices[0].id, 0);
+
   unsigned int runs = 0;
   {
     std::lock_guard<std::mutex> lock(running_mutex);

@@ -31,6 +31,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
 const void PrintInfo();
 const cl_int GetContext(const std::vector<device> &devices, cl_context &context,
                         cl_command_queue &cmd_queue);
+cl_program load_program(const std::string &filename, cl_context &context, cl_device_id &device,cl_int num_devices);
 }
 
 const std::string readable_fs(const unsigned int size);
