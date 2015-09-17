@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <assert.h>
+#define MEM_SIZE (128)
 
 Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 
@@ -12,16 +14,35 @@ Sort::~Sort() {}
 
 static cl_context ctx;
 static vector<cl::device> CtxDevices;
+static cl_command_queue cq;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
-void Sort::Init(cl_context &context, vector<cl::device> &devices, cl::platform platform) { CtxDevices = devices; ctx = context; }
+void Sort::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::device> &devices, cl::platform platform) {
+	CtxDevices = devices; ctx = context; cq = commandQ;
+}
 void Sort::Shutdown() {}
 
 void Sort::Work(unsigned int num_runs) {
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Sort Test, Thread(" << tid << ")\n";
-
-  auto prog = cl::load_program("hello.cl", ctx, CtxDevices[0].id, 0);
+  char outstring[MEM_SIZE];
+  auto prog = cl::load_program("hello.cl", ctx, CtxDevices[0].id, 1);
+  /* Create OpenCL Kernel */
+  cl_int ret;
+  auto kernel = clCreateKernel(prog, "hello", &ret);
+  assert(ret == CL_SUCCESS);
+  /* Create Memory Buffer */
+  auto memobj = clCreateBuffer(ctx, CL_MEM_READ_WRITE, MEM_SIZE * sizeof(char), NULL, &ret);
+  assert(ret == CL_SUCCESS);
+  /* Set OpenCL Kernel Parameters */
+  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&memobj);
+  assert(ret == CL_SUCCESS);
+  /* Execute OpenCL Kernel */
+  ret = clEnqueueTask(cq, kernel, 0, NULL, NULL);
+  assert(ret == CL_SUCCESS);
+  /* Copy results from the memory buffer */
+  ret = clEnqueueReadBuffer(cq, memobj, CL_TRUE, 0, MEM_SIZE * sizeof(char), outstring, 0, NULL, NULL);
+  assert(ret == CL_SUCCESS);
 
   unsigned int runs = 0;
   {

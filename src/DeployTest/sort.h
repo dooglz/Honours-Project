@@ -7,7 +7,7 @@ public:
   ~Sort();
   unsigned int GetMinCu();
   unsigned int GetMax();
-  void Init(cl_context &context, std::vector<cl::device> &devices, cl::platform platform);
+  void Init(cl_context &context, cl_command_queue &cq, std::vector<cl::device> &devices, cl::platform platform);
   void Shutdown();
 
 private:

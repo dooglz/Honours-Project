@@ -16,11 +16,7 @@ Experiment::~Experiment() {
     Stop();
   }
 }
-
-void Experiment::Init(const cl_context &ctx, const cl_command_queue &cq,
-                      const std::vector<cl::device> &devices, const cl::platform platform){
-
-};
+void Experiment::Init(cl_context &context, cl_command_queue &cq, std::vector<cl::device> &devices, cl::platform platform){};
 
 void Experiment::Shutdown() {
   if (IsRunning()) {

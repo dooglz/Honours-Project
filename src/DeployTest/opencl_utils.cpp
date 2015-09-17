@@ -318,6 +318,7 @@ cl_program load_program(const string &filename, cl_context &context, cl_device_i
 
   // Create program object
   auto program = clCreateProgramWithSource(context, 1, &char_contents, nullptr, &status);
+  assert(status == CL_SUCCESS);
   // Compile / build program
   status = clBuildProgram(program, num_devices, &device, nullptr, nullptr, nullptr);
 
