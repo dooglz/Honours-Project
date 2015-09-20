@@ -17,8 +17,11 @@ static vector<cl::device> CtxDevices;
 static cl_command_queue cq;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
-void Sort::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::device> &devices, cl::platform platform) {
-	CtxDevices = devices; ctx = context; cq = commandQ;
+void Sort::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::device> &devices,
+                cl::platform platform) {
+  CtxDevices = devices;
+  ctx = context;
+  cq = commandQ;
 }
 void Sort::Shutdown() {}
 
@@ -41,7 +44,8 @@ void Sort::Work(unsigned int num_runs) {
   ret = clEnqueueTask(cq, kernel, 0, NULL, NULL);
   assert(ret == CL_SUCCESS);
   /* Copy results from the memory buffer */
-  ret = clEnqueueReadBuffer(cq, memobj, CL_TRUE, 0, MEM_SIZE * sizeof(char), outstring, 0, NULL, NULL);
+  ret = clEnqueueReadBuffer(cq, memobj, CL_TRUE, 0, MEM_SIZE * sizeof(char), outstring, 0, NULL,
+                            NULL);
   assert(ret == CL_SUCCESS);
 
   unsigned int runs = 0;

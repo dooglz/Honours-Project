@@ -5,18 +5,18 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
-#include <sstream> 
+#include <sstream>
 using namespace std;
 
 namespace cl {
 cl_uint total_num_devices;
 cl_uint total_num_platforms;
-vector<platform> platforms;
-vector<device> devices;
+platform *platforms;
+device *devices;
 
 const unsigned int Init() {
-  platforms.clear();
-  devices.clear();
+  delete[] platforms;
+  delete[] devices;
   total_num_platforms = 0;
   total_num_devices = 0;
 
@@ -26,15 +26,12 @@ const unsigned int Init() {
   // Get the number of platforms
   status = clGetPlatformIDs(0, NULL, &total_num_platforms);
   assert(status == CL_SUCCESS);
-
   vector<cl_platform_id> platform_ids(total_num_platforms);
-
   status = clGetPlatformIDs(total_num_platforms, &platform_ids[0], nullptr);
   assert(status == CL_SUCCESS);
-  std::vector<device> p_devices;
-  for (auto id : platform_ids) {
 
-    // Get platform devices
+  // Quickly parse all devices
+  for (auto id : platform_ids) {
     cl_uint num_devices;
     status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
     assert(status == CL_SUCCESS);
@@ -42,7 +39,32 @@ const unsigned int Init() {
     vector<cl_device_id> devices_ids(num_devices);
     status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, num_devices, &devices_ids[0], nullptr);
     assert(status == CL_SUCCESS);
+    total_num_devices += num_devices;
+  }
+
+  // setup storage
+  platforms = new platform[total_num_platforms];
+  devices = new device[total_num_devices];
+
+  size_t deviceCount = 0;
+  for (size_t i = 0; i < total_num_platforms; i++) {
+    std::vector<device *> p_devices;
+    cl_platform_id id = platform_ids[i];
+    cl_uint num_devices;
+    status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+    assert(status == CL_SUCCESS);
+
+    vector<cl_device_id> devices_ids(num_devices);
+    status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, num_devices, &devices_ids[0], nullptr);
+    assert(status == CL_SUCCESS);
+
     cl_uint total_cu = 0;
+    size_t valueSize;
+    clGetPlatformInfo(id, CL_PLATFORM_NAME, 0, NULL, &valueSize);
+    auto p_name = (char *)malloc(valueSize);
+    clGetPlatformInfo(id, CL_PLATFORM_NAME, valueSize, p_name, NULL);
+    platforms[i] = platform{id, total_cu, num_devices, p_name};
+    free(p_name);
 
     for (auto dev_id : devices_ids) {
       // Get compute units and name info for each device
@@ -51,43 +73,47 @@ const unsigned int Init() {
       assert(status == CL_SUCCESS);
       total_cu += cu;
 
-      // TODO tidy
-      p_devices.push_back(device{dev_id, id, cu});
-      devices.push_back(device{
-          dev_id, id, cu,
-      });
-      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &p_devices.back().short_name, NULL);
-      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 32, &devices.back().short_name, NULL);
-    }
-    total_num_devices += num_devices;
+      // Deivce Name
+      size_t valueSize;
+      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, 0, NULL, &valueSize);
+      auto value = (char *)malloc(valueSize);
+      clGetDeviceInfo(dev_id, CL_DEVICE_NAME, valueSize, value, NULL);
+      string dev_name = value;
+      free(value);
 
-    platforms.push_back(platform{id, total_cu, num_devices, "", p_devices});
-    clGetPlatformInfo(id, CL_PLATFORM_NAME, 32, &platforms.back().short_name, NULL);
+      devices[deviceCount] = device{dev_id, id, &platforms[i], cu, dev_name};
+      p_devices.push_back(&devices[deviceCount]);
+      ++deviceCount;
+    }
+    platforms[i].devices = p_devices;
   }
 
   return 0;
 }
 
 // return an array of cl_device_id ordered by speed
-const unsigned int GetFastestDevices(std::vector<device> &fastdevices) {
+const unsigned int GetFastestDevices(std::vector<device *> &fastdevices) {
   if (total_num_devices < 1) {
     return 1;
   }
-  fastdevices = devices;
+  for (size_t i = 0; i < total_num_devices; i++) {
+    auto d = &devices[i];
+    fastdevices.push_back(d);
+  }
   // get fastest devices, for now order by compliation units
   std::sort(fastdevices.begin(), fastdevices.end(),
-            [](device const &a, device const &b) { return a.computeUnits < b.computeUnits; });
+            [](device *const &a, device *const &b) { return a->computeUnits < b->computeUnits; });
   return 0;
 }
 
-const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<device> &devices) {
+const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<device *> &devices) {
   if (total_num_devices < 1) {
     return 1;
   }
   if (total_num_devices < count) {
     return GetRecommendedDevices(total_num_devices, devices);
   }
-  vector<device> fastdevices;
+  vector<device *> fastdevices;
   GetFastestDevices(fastdevices);
   if (count == 1) {
     devices.push_back(fastdevices[0]);
@@ -98,7 +124,8 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
   // split into platforms
   vector<cl_platform_id> suitable_p;
   unsigned int d_max = 0;
-  for (auto p : platforms) {
+  for (size_t i = 0; i < total_num_platforms; i++) {
+    auto p = platforms[i];
     d_max = max(d_max, p.num_devices);
     if (p.num_devices >= count) {
       suitable_p.push_back(p.id);
@@ -118,7 +145,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
         if (devices.size() == count) {
           break;
         }
-        if (d.platform == p) {
+        if (d->platform_id == p) {
           devices.push_back(d);
         }
       }
@@ -126,7 +153,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
     } else if (num_devices == count) {
       // just return this platform
       for (auto d : fastdevices) {
-        if (d.platform == p) {
+        if (d->platform_id == p) {
           devices.push_back(d);
         }
       }
@@ -138,9 +165,9 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
     // TODO: do all this in the init stage
     unsigned int *score = new unsigned int[suitable_p.size()];
     for (unsigned int i = 0; i < fastdevices.size(); i++) {
-      device *d = &fastdevices[i];
+      device *d = fastdevices[i];
       for (unsigned int j = 0; j < suitable_p.size(); j++) {
-        if (d->platform == suitable_p[j]) {
+        if (d->platform_id == suitable_p[j]) {
           score[j] += fastdevices.size() - i;
         }
       }
@@ -163,7 +190,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
         if (devices.size() == count) {
           break;
         }
-        if (d.platform == p) {
+        if (d->platform_id == p) {
           devices.push_back(d);
         }
       }
@@ -171,7 +198,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<d
     } else if (num_devices == count) {
       // just return this platform
       for (auto d : fastdevices) {
-        if (d.platform == p) {
+        if (d->platform_id == p) {
           devices.push_back(d);
         }
       }
@@ -207,7 +234,8 @@ const void PrintInfo() {
   cl_ulong ul = 0;
 
   size_t valueSize;
-  for (auto plat : platforms) {
+  for (size_t i = 0; i < total_num_platforms; i++) {
+    auto plat = platforms[i];
     unsigned int j = 0;
     char *value;
 
@@ -217,8 +245,9 @@ const void PrintInfo() {
     cout << i + 1 << ".6 Platform: " << value << std::endl;
     free(value);
 
-    for (auto dev : devices) {
-      if (dev.platform != plat.id) {
+    for (auto d : plat.devices) {
+      auto dev = *d;
+      if (dev.platform_id != plat.id) {
         continue;
       }
       clGetDeviceInfo(dev.id, CL_DEVICE_NAME, 0, NULL, &valueSize);
@@ -318,7 +347,25 @@ cl_program load_program(const string &filename, cl_context &context, cl_device_i
 
   // Create program object
   auto program = clCreateProgramWithSource(context, 1, &char_contents, nullptr, &status);
-  assert(status == CL_SUCCESS);
+  if (status != CL_SUCCESS) {
+    cerr << "Error On clCreateProgramWithSource " << __LINE__ << " " << __FILE__ << endl;
+    switch (status) {
+    case CL_INVALID_CONTEXT:
+      cerr << "CL_INVALID_CONTEXT" << endl;
+      break;
+    case CL_INVALID_VALUE:
+      cerr << "CL_INVALID_VALUE" << endl;
+      cerr << char_contents << endl;
+      break;
+    case CL_OUT_OF_HOST_MEMORY:
+      cerr << "CL_OUT_OF_HOST_MEMORY" << endl;
+      break;
+    default:
+      break;
+    }
+    assert(false);
+  }
+
   // Compile / build program
   status = clBuildProgram(program, num_devices, &device, nullptr, nullptr, nullptr);
 

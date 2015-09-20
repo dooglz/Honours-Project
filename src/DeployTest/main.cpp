@@ -93,11 +93,11 @@ int main() {
   std::cout << "Hello Deploy World!\n";
   cl::Init();
   cl::PrintInfo();
-  std::vector<cl::device> devices;
+  std::vector<cl::device *> devices;
   cl::GetRecommendedDevices(7, devices);
   std::cout << "\nRecommended devices:\n";
   for (auto dev : devices) {
-    std::cout << dev.short_name << "\n";
+    std::cout << dev->short_name << "\n";
   }
   STATE st = CHOOSE;
   // create list of tests
@@ -139,14 +139,14 @@ int main() {
       cout << "Avaialble Platforms:" << std::endl;
       cout << "\t0\tCancel\n\t1\tUse Reccomended" << std::endl;
 
-      for (size_t i = 0; i < cl::platforms.size(); i++) {
+      for (size_t i = 0; i < cl::total_num_platforms; i++) {
         cout << "\t" << i + 2 << "\t" << cl::platforms[i].short_name
              << "\t Devices:" << cl::platforms[i].num_devices << std::endl;
       }
 
       selectedPlat =
           promptValidated<unsigned int, unsigned int>("Choose an Platform: ", [](unsigned int j) {
-            return (j >= 0 && j <= (2 + cl::platforms.size()));
+            return (j >= 0 && j <= (2 + cl::total_num_platforms));
           });
       if (selectedPlat == 0) {
         st = CHOOSE;
@@ -170,8 +170,8 @@ int main() {
           cout << "\t0\tCancel\n\t1\tDone" << std::endl;
         }
         for (size_t i = 0; i < cl::platforms[selectedPlat].num_devices; i++) {
-          cout << "\t" << i + 2 << "\t" << cl::platforms[selectedPlat].devices[i].short_name
-               << "\t CU:" << cl::platforms[selectedPlat].devices[i].computeUnits;
+          cout << "\t" << i + 2 << "\t" << cl::platforms[selectedPlat].devices[i]->short_name
+               << "\t CU:" << cl::platforms[selectedPlat].devices[i]->computeUnits;
           if (selected[i] == true) {
             cout << "\t Selected" << std::endl;
           } else {
@@ -195,7 +195,7 @@ int main() {
 
       for (size_t i = 0; i < 5; i++) {
         if (selected[i] == true) {
-          sel_devices.push_back(cl::platforms[selectedPlat].devices[i]);
+          sel_devices.push_back(*cl::platforms[selectedPlat].devices[i]);
         }
       }
       delete[] selected;
