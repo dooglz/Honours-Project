@@ -9,7 +9,6 @@ extern cl_uint total_num_devices;
 extern cl_uint total_num_platforms;
 
 struct platform;
-struct device;
 
 struct device {
   cl_device_id id;
