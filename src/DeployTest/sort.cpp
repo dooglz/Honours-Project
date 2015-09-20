@@ -13,12 +13,12 @@ Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 Sort::~Sort() {}
 
 static cl_context ctx;
-static vector<cl::device> CtxDevices;
+static vector<cl::Device> CtxDevices;
 static cl_command_queue cq;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
-void Sort::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::device> &devices,
-                cl::platform platform) {
+void Sort::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::Device> &devices,
+                cl::Platform platform) {
   CtxDevices = devices;
   ctx = context;
   cq = commandQ;

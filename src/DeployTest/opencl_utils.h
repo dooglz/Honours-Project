@@ -8,31 +8,31 @@ namespace cl {
 extern cl_uint total_num_devices;
 extern cl_uint total_num_platforms;
 
-struct platform;
+struct Platform;
 
-struct device {
+struct Device {
   cl_device_id id;
   cl_platform_id platform_id;
-  platform *platform;
+  Platform *platform;
   unsigned int computeUnits;
   std::string short_name;
 };
-struct platform {
+struct Platform {
   cl_platform_id id;
   unsigned int computeUnits;
   unsigned int num_devices;
   std::string short_name;
-  std::vector<device *> devices;
+  std::vector<Device *> devices;
 };
 
-extern platform *platforms;
-extern device *devices;
+extern Platform *platforms;
+extern Device *devices;
 
 const unsigned int Init();
 const std::string DeviceTypeString(const cl_device_type type);
-const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<device*> &devices);
+const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<Device*> &devices);
 const void PrintInfo();
-const cl_int GetContext(const std::vector<device> &devices, cl_context &context,
+const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
                         cl_command_queue &cmd_queue);
 cl_program load_program(const std::string &filename, cl_context &context, cl_device_id &device,
                         cl_int num_devices);

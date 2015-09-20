@@ -93,7 +93,7 @@ int main() {
   std::cout << "Hello Deploy World!\n";
   cl::Init();
   cl::PrintInfo();
-  std::vector<cl::device *> devices;
+  std::vector<cl::Device *> devices;
   cl::GetRecommendedDevices(7, devices);
   std::cout << "\nRecommended devices:\n";
   for (auto dev : devices) {
@@ -191,7 +191,7 @@ int main() {
           }
         }
       }
-      std::vector<cl::device> sel_devices;
+      std::vector<cl::Device> sel_devices;
 
       for (size_t i = 0; i < 5; i++) {
         if (selected[i] == true) {

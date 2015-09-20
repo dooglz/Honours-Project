@@ -29,7 +29,7 @@ public:
   const unsigned int maxCU;
   const std::string name;
   const std::string description;
-  virtual void Init(cl_context &context, cl_command_queue &cq, std::vector<cl::device> &devices, cl::platform platform);
+  virtual void Init(cl_context &context, cl_command_queue &cq, std::vector<cl::Device> &devices, cl::Platform platform);
   virtual void Shutdown();
   bool IsRunning();
   bool ShouldRun();
