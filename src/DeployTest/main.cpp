@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "opencl_utils.h"
 #include "sort.h"
+#include "test.h"
 // for sleep
 #include <chrono>
 #include <thread>
@@ -102,7 +103,7 @@ int main() {
   STATE st = CHOOSE;
   // create list of tests
   Experiment *exps[2];
-  exps[0] = new Sort();
+  exps[0] = new Test();
   exps[1] = new Sort();
   bool run = true;
   unsigned int selectedExp = 0;
