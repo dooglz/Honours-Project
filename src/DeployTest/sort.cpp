@@ -27,7 +27,7 @@ void Sort::Shutdown() {}
 
 void Sort::Work(unsigned int num_runs) {
 
-  int wg = 32;
+  int wg = 256;
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Sort Test, Thread(" << tid << ")\n";
   char outstring[MEM_SIZE];
@@ -35,11 +35,11 @@ void Sort::Work(unsigned int num_runs) {
 
   /* Create OpenCL Kernel */
   cl_int ret;
-  auto kernel = clCreateKernel(prog, "ParallelSelection_Local", &ret);
+  auto kernel = clCreateKernel(prog, "bitonicSort", &ret);
   assert(ret == CL_SUCCESS);
 
   /* Create Sapce for Random Numbers */
-  int maxN = 1 << 24;
+  cl_uint maxN = 1 << 16;
   cl_uint *rndData = new cl_uint[maxN];
 
   /*Assign memory*/
@@ -52,10 +52,11 @@ void Sort::Work(unsigned int num_runs) {
   /* Set OpenCL Kernel Parameters */
   ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&inBuffer);
   assert(ret == CL_SUCCESS);
-  ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&outBuffer);
+  //width
+  ret = clSetKernelArg(kernel, 3, sizeof(cl_uint), (void *)&maxN);
   assert(ret == CL_SUCCESS);
-  ret = clSetKernelArg(kernel, 2, sizeof(cl_uint) * wg, NULL);
-  assert(ret == CL_SUCCESS);
+  //direction
+
 
   unsigned int runs = 0;
   {
@@ -71,7 +72,7 @@ void Sort::Work(unsigned int num_runs) {
     //
 
     // make new numbers
-    for (int i = 0; i < maxN; i++) {
+    for (cl_uint i = 0; i < maxN; i++) {
       cl_uint x = (cl_uint)0;
       rndData[i] = (x << 14) | ((cl_uint)rand() & 0x3FFF);
       rndData[i] = (x << 14) | ((cl_uint)rand() & 0x3FFF);
@@ -80,31 +81,65 @@ void Sort::Work(unsigned int num_runs) {
     ret = clEnqueueWriteBuffer(cq, inBuffer, CL_TRUE, 0, sz, rndData, 0, NULL, NULL); // blocking
     clFinish(cq); // Wait untill all commands executed.
 
+    /*
+    * 2^numStages should be equal to length.
+    * i.e the number of times you halve length to get 1 should be numStages
+    */
+    int temp;
+    cl_uint numStages = 0;
+    for (temp = maxN; temp > 1; temp >>= 1)
+      ++numStages;
+
+
     Timer t = Timer(to_string(runs));
     // run the sort.
     size_t nThreads[1];
-    nThreads[0] = maxN;
+    nThreads[0] = maxN /2;
     size_t workGroup[1];
     workGroup[0] = wg;
     cl_event e;
-    ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
-    assert(ret == CL_SUCCESS);
-    clFinish(cq); // Wait untill all commands executed.
 
-    /*
+    cl_uint stage;
+    cl_uint passOfStage;
+
+    for (stage = 0; stage < numStages; ++stage) {
+      // stage of the algorithm
+      ret = clSetKernelArg(kernel, 1, sizeof(cl_uint), (void *)&stage);
+      assert(ret == CL_SUCCESS);
+      // Every stage has stage + 1 passes
+      for (passOfStage = 0; passOfStage < stage + 1; ++passOfStage) {
+        ret = clSetKernelArg(kernel, 2, sizeof(cl_uint), (void *)&passOfStage);
+        assert(ret == CL_SUCCESS);
+
+        /*
+        * Enqueue a kernel run call.
+        * For simplicity, the groupsize used is 1.
+        *
+        * Each thread writes a sorted pair.
+        * So, the number of  threads (global) is half the length.
+        */
+        ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
+        assert(ret == CL_SUCCESS);
+
+        clFinish(cq); // Wait untill all commands executed.
+
+      }
+    }
+
+    
     // Copy results from the memory buffer
-    cl_uint *outData = new cl_uint[maxN];
-    ret = clEnqueueReadBuffer(cq, outBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
-    clFinish(cq); // Wait untill all commands executed.
-    */
-
+  //  cl_uint *outData = new cl_uint[maxN];
+   // ret = clEnqueueReadBuffer(cq, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
+   // clFinish(cq); // Wait untill all commands executed.
+    
+    //delete outData;
     //
     ++runs;
     t.Stop();
     times.push_back(t);
   }
   printf("\n thread stopping\n");
-  // delete outData;
+  
   delete rndData;
   PrintToCSV("Run #", "Time", times, "sort_" + current_time_and_date());
   {
