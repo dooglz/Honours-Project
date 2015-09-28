@@ -35,11 +35,11 @@ void Sort::Work(unsigned int num_runs) {
 
   /* Create OpenCL Kernel */
   cl_int ret;
-  auto kernel = clCreateKernel(prog, "bitonicSort", &ret);
+  auto kernel = clCreateKernel(prog, "bitonicSort2", &ret);
   assert(ret == CL_SUCCESS);
 
   /* Create Sapce for Random Numbers */
-  cl_uint maxN = 1 << 16;
+  cl_uint maxN = 512;
   cl_uint *rndData = new cl_uint[maxN];
 
   /*Assign memory*/
@@ -87,27 +87,28 @@ void Sort::Work(unsigned int num_runs) {
     */
     int temp;
     cl_uint numStages = 0;
-    for (temp = maxN; temp > 1; temp >>= 1)
+    for (temp = maxN; temp > 2; temp >>= 1)
       ++numStages;
 
 
     Timer t = Timer(to_string(runs));
     // run the sort.
     size_t nThreads[1];
-    nThreads[0] = maxN /2;
+    nThreads[0] = maxN /(2*4);
     size_t workGroup[1];
     workGroup[0] = wg;
     cl_event e;
 
-    cl_uint stage;
-    cl_uint passOfStage;
+    cl_int stage;
+    cl_int passOfStage;
 
-    for (stage = 0; stage < numStages; ++stage) {
+    for (stage = 0; stage < numStages; stage++) {
       // stage of the algorithm
       ret = clSetKernelArg(kernel, 1, sizeof(cl_uint), (void *)&stage);
       assert(ret == CL_SUCCESS);
       // Every stage has stage + 1 passes
-      for (passOfStage = 0; passOfStage < stage + 1; ++passOfStage) {
+      for (passOfStage = stage; passOfStage >= 0; passOfStage--)
+      {
         ret = clSetKernelArg(kernel, 2, sizeof(cl_uint), (void *)&passOfStage);
         assert(ret == CL_SUCCESS);
 
@@ -118,7 +119,9 @@ void Sort::Work(unsigned int num_runs) {
         * Each thread writes a sorted pair.
         * So, the number of  threads (global) is half the length.
         */
-        ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
+        size_t global_work_size[1] = { passOfStage ? nThreads[0] : nThreads[0] << 1 };
+        //ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
+        ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, global_work_size, NULL, 0, NULL, &e);
         assert(ret == CL_SUCCESS);
 
         clFinish(cq); // Wait untill all commands executed.
@@ -128,9 +131,9 @@ void Sort::Work(unsigned int num_runs) {
 
     
     // Copy results from the memory buffer
-  //  cl_uint *outData = new cl_uint[maxN];
-   // ret = clEnqueueReadBuffer(cq, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
-   // clFinish(cq); // Wait untill all commands executed.
+    cl_uint *outData = new cl_uint[maxN];
+    ret = clEnqueueReadBuffer(cq, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
+    clFinish(cq); // Wait untill all commands executed.
     
     //delete outData;
     //

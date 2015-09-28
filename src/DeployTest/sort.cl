@@ -1,3 +1,29 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 __kernel void bitonicSort(__global uint *theArray, const uint stage, const uint passOfStage,
                           const uint width // amount of items in the array
                           ) {
