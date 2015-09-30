@@ -20,11 +20,52 @@ file(GLOB CL_PROGRAMS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.cl" 
 )
 
-add_custom_command(
-	TARGET DeployTest POST_BUILD        # Adds a post-build event to MyTest
-    COMMAND ${CMAKE_COMMAND}
-	-E copy_if_different  # which executes "cmake - E copy_if_different..."
-    ${CL_PROGRAMS}    # <--this is in-file
-    $<TARGET_FILE_DIR:DeployTest>
-	COMMENT "Copying ${SRCFILE} ${TO_DIR}"
-)
+if(UNIX)
+	FILE(TO_NATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR} srcdir_win) 
+	FILE(TO_NATIVE_PATH $<TARGET_FILE_DIR:DeployTest> outdir_win) 
+	add_custom_command(
+		TARGET DeployTest POST_BUILD
+		COMMAND cp /y ${srcdir_win}\\*.cl \"$<TARGET_FILE_DIR:DeployTest>\\\"
+		COMMENT "XCopying ${srcdir_win} ${outdir_win}"
+	)
+else(WIN32) 
+	FILE(TO_NATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR} srcdir_win) 
+	FILE(TO_NATIVE_PATH $<TARGET_FILE_DIR:DeployTest> outdir_win) 
+	add_custom_command(
+		TARGET DeployTest POST_BUILD
+		COMMAND xcopy /y ${srcdir_win}\\*.cl \"$<TARGET_FILE_DIR:DeployTest>\\\"
+		COMMENT "XCopying ${srcdir_win} ${outdir_win}"
+	)
+endif()
+
+
+#xcopy C:\Users\40082367\Desktop\Honours\src\DeployTest\*.cl C:\a
+
+
+
+#MACRO(MAKE_PATH pathname)
+#  # An extra \\ escape is necessary to get a \ through CMake's processing.
+#  STRING(REPLACE "/" "\\" ${pathname} "${${pathname}}")
+#  # Enclose with UNESCAPED quotes.  This means we need to escape our
+#  # quotes once here, i.e. with \"
+#  SET(${pathname} \"${${pathname}}\")
+#ENDMACRO(MAKE_PATH)
+#
+#foreach(ff ${CL_PROGRAMS})
+#  add_custom_command(	TARGET DeployTest POST_BUILD        # Adds a post-build event to MyTest
+#	COMMAND ${CMAKE_COMMAND}
+#	-E copy_if_different  # which executes "cmake - E copy_if_different..."
+#	MAKE_PATH(${ff})    # <--this is in-file
+#	$<TARGET_FILE_DIR:DeployTest>
+#	COMMENT "Copying ${SRCFILE} ${TO_DIR}")
+#	
+#endforeach()
+
+#add_custom_command(
+#	TARGET DeployTest POST_BUILD        # Adds a post-build event to MyTest
+#    COMMAND ${CMAKE_COMMAND}
+#	-E copy_if_different  # which executes "cmake - E copy_if_different..."
+#    ${CL_PROGRAMS}    # <--this is in-file
+#    $<TARGET_FILE_DIR:DeployTest>
+#	COMMENT "Copying ${SRCFILE} ${TO_DIR}"
+#)
