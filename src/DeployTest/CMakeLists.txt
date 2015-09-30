@@ -21,12 +21,10 @@ file(GLOB CL_PROGRAMS
 )
 
 if(UNIX)
-	FILE(TO_NATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR} srcdir_win) 
-	FILE(TO_NATIVE_PATH $<TARGET_FILE_DIR:DeployTest> outdir_win) 
 	add_custom_command(
-		TARGET DeployTest POST_BUILD
-		COMMAND cp /y ${srcdir_win}\\*.cl \"$<TARGET_FILE_DIR:DeployTest>\\\"
-		COMMENT "XCopying ${srcdir_win} ${outdir_win}"
+			TARGET DeployTest POST_BUILD
+			COMMAND cp -f ${CMAKE_CURRENT_SOURCE_DIR}/*.cl $<TARGET_FILE_DIR:DeployTest>
+			COMMENT "Copying ${srcdir_win} ${outdir_win}"
 	)
 else(WIN32) 
 	FILE(TO_NATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR} srcdir_win) 
