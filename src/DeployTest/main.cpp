@@ -12,6 +12,7 @@
 #include <thread>
 #include <string>
 #include <sstream>
+#include "ezOptionParser.hpp"
 
 using namespace std;
 
@@ -89,13 +90,72 @@ T nopromptValidated(std::function<bool(U)> condition = [](...) { return true; })
   return input;
 }
 
-int main() {
-  // Initial
-  std::cout << "Hello Deploy World!\n";
+void Usage(ez::ezOptionParser &opt) {
+  std::string usage;
+  opt.getUsage(usage);
+  std::cout << usage;
+};
+
+int main(int argc, const char *argv[]) {
+  std::cout << "Hello World!\n";
+  ez::ezOptionParser opt;
+
+  opt.overview = "Demo of automatic usage message creation.";
+  opt.syntax = "usage [OPTIONS]";
+  opt.example = "usage -h\n\n";
+  opt.footer = "Sam Serrels 2015\n";
+
+  opt.add("", 0, 0, 0, "Display usage", "-h", "-help", "--help", "--usage");
+
+  opt.add("", 0, 3, ',', "Batch Mode,-b [platform] [device] [test]", "-b", "-batch",
+          "--batch");
+
+  opt.add("", 0, 1, 0, "Output FileName, will overrite existing files", "-f", "-file", "-out",
+          "--outputfile");
+
+  opt.parse(argc, argv);
+
+  if (opt.isSet("-h")) {
+    Usage(opt);
+    return 0;
+  }
+  std::vector<std::string> badOptions;
+  int i;
+  if (!opt.gotRequired(badOptions)) {
+    for (i = 0; i < badOptions.size(); ++i) {
+      std::cerr << "ERROR: Missing required option " << badOptions[i] << ".\n\n";
+    }
+    Usage(opt);
+    return 1;
+  }
+
+  if (!opt.gotExpected(badOptions)) {
+    for (i = 0; i < badOptions.size(); ++i) {
+      std::cerr << "ERROR: Got unexpected number of arguments for option " << badOptions[i]
+                << ".\n\n";
+    }
+    Usage(opt);
+    return 1;
+  }
+
+  if (opt.isSet("-b")) {
+    cout << "Batch mode selected";
+    std::vector<int> list;
+    opt.get("-b")->getInts(list);
+    for (int j = 0; j < list.size(); ++j) {
+      std::cout << " " << list[j];
+    }
+    std::cout << endl;
+    return 0;
+  }
+
+  // init cl
   cl::Init();
   cl::PrintInfo();
   std::vector<cl::Device *> devices;
   cl::GetRecommendedDevices(7, devices);
+
+  // start menu system
   std::cout << "\nRecommended devices:\n";
   for (auto dev : devices) {
     std::cout << dev->short_name << "\n";
@@ -231,7 +291,7 @@ int main() {
     case WORK:
       if (exps[selectedExp]->IsRunning()) {
         // bare in mind that the program will block here.
-        int a = nopromptValidated<int, int>([](int j) { return (j > 0); });
+        int a = nopromptValidated<int, int>([](int j) { return (j >= 0); });
         if (a == 0) {
           cout << "Stopping" << std::endl;
           exps[selectedExp]->Stop();

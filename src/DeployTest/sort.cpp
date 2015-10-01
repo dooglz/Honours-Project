@@ -138,10 +138,9 @@ void Sort::Work(unsigned int num_runs) {
     t.Stop();
     times.push_back(t);
   }
-  printf("\n thread stopping\n");
-  
   delete rndData;
   PrintToCSV("Run #", "Time", times, "sort_" + current_time_and_date());
+  printf("\n Sort finished\n");
   {
 
     std::lock_guard<std::mutex> lock(running_mutex);
