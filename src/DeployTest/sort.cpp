@@ -39,7 +39,7 @@ void Sort::Work(unsigned int num_runs) {
   assert(ret == CL_SUCCESS);
 
   /* Create Sapce for Random Numbers */
-  cl_uint maxN = 512;
+  cl_uint maxN = 1 << 16;
   cl_uint *rndData = new cl_uint[maxN];
 
   /*Assign memory*/
@@ -129,16 +129,18 @@ void Sort::Work(unsigned int num_runs) {
       }
     }
 
+    //stop timer here
+    t.Stop();
     
     // Copy results from the memory buffer
     cl_uint *outData = new cl_uint[maxN];
     ret = clEnqueueReadBuffer(cq, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
     clFinish(cq); // Wait untill all commands executed.
     
-    //delete outData;
-    //
+    assert(CheckArrayOrder(outData, maxN, false));
+    delete outData;
+
     ++runs;
-    t.Stop();
     times.push_back(t);
   }
   printf("\n thread stopping\n");

@@ -50,4 +50,18 @@ protected:
   const void PrintToCSV(const string &collumn1, const string &collumn2,
                                     const vector<Timer> &times, const string &filename);
   const void PrintToCSV(const vector<vector<string>> v, const string &filename);
+
+  template <typename T>
+  const bool CheckArrayOrder(const T* a, const size_t size, const bool order) {
+      if (size < 1) { return true; }
+      for (size_t i = 1; i < size; i++)
+      {
+        if ((order && a[i] < a[i - 1]) || (!order && a[i] > a[i - 1])) {
+          return false;
+        }
+      }
+      return true;
+  }
+
+
 };
