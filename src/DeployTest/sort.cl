@@ -1,29 +1,96 @@
 
+//intel vectorised bitonic sort
+__kernel void  bitonicSort2(__global int4 * theArray,
+  const uint stage,
+  const uint passOfStage,
+  const uint width)
+{
+  size_t i = get_global_id(0);
+  int4 srcLeft, srcRight, mask;
+  int4 imask10 = (int4)(0, 0, -1, -1);
+  int4 imask11 = (int4)(0, -1, 0, -1);
+  const uint dir = 0;
+  if (stage > 0)
+  {
+    if (passOfStage > 0)    // upper level pass, exchange between two fours
+    {
+      size_t r = 1 << (passOfStage - 1);
+      size_t lmask = r - 1;
+      size_t left = ((i >> (passOfStage - 1)) << passOfStage) + (i & lmask);
+      size_t right = left + r;
 
+      srcLeft = theArray[left];
+      srcRight = theArray[right];
+      mask = srcLeft < srcRight;
 
+      int4 imin = (srcLeft & mask) | (srcRight & ~mask);
+      int4 imax = (srcLeft & ~mask) | (srcRight & mask);
 
+      if (((i >> (stage - 1)) & 1) ^ dir)
+      {
+        theArray[left] = imin;
+        theArray[right] = imax;
+      }
+      else
+      {
+        theArray[right] = imin;
+        theArray[left] = imax;
+      }
+    }
+    else    // last pass, sort inside one four
+    {
+      srcLeft = theArray[i];
+      srcRight = srcLeft.zwxy;
+      mask = (srcLeft < srcRight) ^ imask10;
 
+      if (((i >> stage) & 1) ^ dir)
+      {
+        srcLeft = (srcLeft & mask) | (srcRight & ~mask);
+        srcRight = srcLeft.yxwz;
+        mask = (srcLeft < srcRight) ^ imask11;
+        theArray[i] = (srcLeft & mask) | (srcRight & ~mask);
+      }
+      else
+      {
+        srcLeft = (srcLeft & ~mask) | (srcRight & mask);
+        srcRight = srcLeft.yxwz;
+        mask = (srcLeft < srcRight) ^ imask11;
+        theArray[i] = (srcLeft & ~mask) | (srcRight & mask);
+      }
+    }
+  }
+  else    // first stage, sort inside one four
+  {
+    int4 imask0 = (int4)(0, -1, -1, 0);
+    srcLeft = theArray[i];
+    srcRight = srcLeft.yxwz;
+    mask = (srcLeft < srcRight) ^ imask0;
+    if (dir)
+      srcLeft = (srcLeft & mask) | (srcRight & ~mask);
+    else
+      srcLeft = (srcLeft & ~mask) | (srcRight & mask);
 
+    srcRight = srcLeft.zwxy;
+    mask = (srcLeft < srcRight) ^ imask10;
 
+    if ((i & 1) ^ dir)
+    {
+      srcLeft = (srcLeft & mask) | (srcRight & ~mask);
+      srcRight = srcLeft.yxwz;
+      mask = (srcLeft < srcRight) ^ imask11;
+      theArray[i] = (srcLeft & mask) | (srcRight & ~mask);
+    }
+    else
+    {
+      srcLeft = (srcLeft & ~mask) | (srcRight & mask);
+      srcRight = srcLeft.yxwz;
+      mask = (srcLeft < srcRight) ^ imask11;
+      theArray[i] = (srcLeft & ~mask) | (srcRight & mask);
+    }
+  }
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//amds simple bitonic sort
 __kernel void bitonicSort(__global uint *theArray, const uint stage, const uint passOfStage,
                           const uint width // amount of items in the array
                           ) {
