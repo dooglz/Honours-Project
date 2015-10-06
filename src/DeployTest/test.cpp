@@ -14,10 +14,10 @@ Test::~Test() {}
 
 static cl_context ctx;
 static vector<cl::Device> CtxDevices;
-static cl_command_queue cq;
+static  std::vector<cl_command_queue>  cq;
 unsigned int Test::GetMinCu() { return 1; }
 unsigned int Test::GetMax() { return 4; }
-void Test::Init(cl_context &context, cl_command_queue &commandQ, std::vector<cl::Device> &devices,
+void Test::Init(cl_context &context, std::vector<cl_command_queue>  &commandQ, std::vector<cl::Device> &devices,
                 cl::Platform platform) {
   CtxDevices = devices;
   ctx = context;
@@ -29,7 +29,7 @@ void Test::Work(unsigned int num_runs) {
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Test Test, Thread(" << tid << ")\n";
   char outstring[MEM_SIZE];
-  auto prog = cl::load_program("hello.cl", ctx, CtxDevices[0].id, 1);
+  auto prog = cl::load_program("hello.cl", ctx, CtxDevices);
   /* Create OpenCL Kernel */
   cl_int ret;
   auto kernel = clCreateKernel(prog, "hello", &ret);
@@ -54,10 +54,10 @@ void Test::Work(unsigned int num_runs) {
     wprintf(L" %c\t%u\t%Percent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
     //
     /* Execute OpenCL Kernel */
-    ret = clEnqueueTask(cq, kernel, 0, NULL, NULL);
+    ret = clEnqueueTask(cq[0], kernel, 0, NULL, NULL);
     assert(ret == CL_SUCCESS);
     /* Copy results from the memory buffer */
-    ret = clEnqueueReadBuffer(cq, memobj, CL_TRUE, 0, MEM_SIZE * sizeof(char), outstring, 0, NULL, NULL);
+    ret = clEnqueueReadBuffer(cq[0], memobj, CL_TRUE, 0, MEM_SIZE * sizeof(char), outstring, 0, NULL, NULL);
     assert(ret == CL_SUCCESS);
     string s = outstring;
     assert(s == "Hello, World!");

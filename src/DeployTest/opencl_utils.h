@@ -33,9 +33,12 @@ const std::string DeviceTypeString(const cl_device_type type);
 const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<Device*> &devices);
 const void PrintInfo();
 const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
-                        cl_command_queue &cmd_queue);
-cl_program load_program(const std::string &filename, cl_context &context, cl_device_id &device,
-                        cl_int num_devices);
+  std::vector<cl_command_queue> &cmd_queue);
+cl_program load_program(const std::string &filename, cl_context &context, const std::vector<Device> &devices);
+
+
+const void DeviceVectorToIdArray(const std::vector<Device> &devices, cl_device_id *ids);
+
 }
 
 const std::string readable_fs(const unsigned int size);

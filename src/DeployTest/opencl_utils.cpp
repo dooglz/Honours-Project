@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <memory>
 using namespace std;
 
 namespace cl {
@@ -313,7 +314,7 @@ const void PrintInfo() {
 }
 
 const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
-                        cl_command_queue &cmd_queue) {
+  std::vector<cl_command_queue> &cmd_queue) {
   std::vector<cl_device_id> ids;
   for (auto d : devices) {
     ids.push_back(d.id);
@@ -323,16 +324,23 @@ const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
   context = clCreateContext(nullptr, ids.size(), &ids[0], nullptr, nullptr, &status);
   assert(status == CL_SUCCESS);
 
-  // Create a command queue
-  cmd_queue = clCreateCommandQueue(context, ids[0], 0, &status);
-  assert(status == CL_SUCCESS);
+  for (auto d : ids) {
+    // Create a command queue
+    cl_command_queue cq = clCreateCommandQueue(context, d, 0, &status);
+    cmd_queue.push_back(cq);
+    assert(status == CL_SUCCESS);
+  }
+
   return status;
 
   // cl_int clReleaseContext (	cl_context context)
 }
 
-cl_program load_program(const string &filename, cl_context &context, cl_device_id &device,
-                        cl_int num_devices) {
+cl_program load_program(const string &filename, cl_context &context, const std::vector<Device> &devices) {
+
+  auto devIds = new cl_device_id[devices.size()];
+  cl::DeviceVectorToIdArray(devices, devIds);
+
   // Status of OpenCL calls
   cl_int status;
 
@@ -367,15 +375,15 @@ cl_program load_program(const string &filename, cl_context &context, cl_device_i
   }
 
   // Compile / build program
-  status = clBuildProgram(program, num_devices, &device, nullptr, nullptr, nullptr);
-
+  status = clBuildProgram(program, devices.size(), devIds, nullptr, nullptr, nullptr);
+  delete[] devIds;
   // Check if compiled
   if (status != CL_SUCCESS) {
     // Error building - get log
     size_t length;
-    clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &length);
+    clGetProgramBuildInfo(program, devIds[0], CL_PROGRAM_BUILD_LOG, 0, nullptr, &length);
     char *log = new char[length];
-    clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, length, log, &length);
+    clGetProgramBuildInfo(program, devIds[0], CL_PROGRAM_BUILD_LOG, length, log, &length);
     // Print log
     cout << log << endl;
     delete[] log;
@@ -384,4 +392,11 @@ cl_program load_program(const string &filename, cl_context &context, cl_device_i
   // Return program object
   return program;
 }
+const void DeviceVectorToIdArray(const std::vector<Device> &devices, cl_device_id * ids) {
+  for (size_t i = 0; i < devices.size(); i++)
+  {
+    ids[i] = devices[i].id;
+  }
+}
+
 }

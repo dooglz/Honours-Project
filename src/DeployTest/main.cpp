@@ -296,7 +296,7 @@ int main(int argc, const char *argv[]) {
         } else {
           // load selected
           cl_context context;
-          cl_command_queue cmd_queue;
+          std::vector<cl_command_queue> cmd_queue;
           GetContext(sel_devices, context, cmd_queue);
           exps[selectedExp]->Init(context, cmd_queue, sel_devices, cl::platforms[selectedPlat]);
         }
