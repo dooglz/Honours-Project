@@ -74,7 +74,7 @@ void Experiment::Stop() {
       return;
     }
   }
-  printf("stopped\n");
+  printf("Exeriment Stopped\n");
 };
 
 bool Experiment::IsRunning() {
