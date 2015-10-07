@@ -14,11 +14,11 @@ Sort::~Sort() {}
 
 static cl_context ctx;
 static vector<cl::Device> CtxDevices;
-static  std::vector<cl_command_queue>  cq;
+static std::vector<cl_command_queue> cq;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
-void Sort::Init(cl_context &context, std::vector<cl_command_queue>  &commandQ, std::vector<cl::Device> &devices,
-                cl::Platform platform) {
+void Sort::Init(cl_context &context, std::vector<cl_command_queue> &commandQ,
+                std::vector<cl::Device> &devices, cl::Platform platform) {
   CtxDevices = devices;
   ctx = context;
   cq = commandQ;
@@ -26,7 +26,7 @@ void Sort::Init(cl_context &context, std::vector<cl_command_queue>  &commandQ, s
 void Sort::Shutdown() {}
 
 void Sort::Work(unsigned int num_runs) {
-
+  int ret = 0;
   int wg = 256;
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Sort Test, Thread(" << tid << ")\n";
@@ -34,36 +34,39 @@ void Sort::Work(unsigned int num_runs) {
 
   auto prog = cl::load_program("sort.cl", ctx, CtxDevices);
 
-  /* Create OpenCL Kernel */
-  cl_int ret;
-  auto kernel = clCreateKernel(prog, "bitonicSort2", &ret);
-  assert(ret == CL_SUCCESS);
-
   /* Create Sapce for Random Numbers */
   cl_uint maxN = 1 << 16;
   cl_uint *rndData = new cl_uint[maxN];
 
   /*Assign memory*/
   size_t sz = maxN * sizeof(cl_uint);
-  cl_mem inBuffer = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sz, NULL, &ret);
-  assert(ret == CL_SUCCESS);
-  cl_mem outBuffer = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sz, NULL, &ret);
-  assert(ret == CL_SUCCESS);
 
-  /* Set OpenCL Kernel Parameters */
-  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&inBuffer);
-  assert(ret == CL_SUCCESS);
-  //width
-  ret = clSetKernelArg(kernel, 3, sizeof(cl_uint), (void *)&maxN);
-  assert(ret == CL_SUCCESS);
-  //direction
-
+  std::vector<cl_kernel> kernels;
+  std::vector<cl_mem> inBuffers;
+  std::vector<cl_mem> outBuffers;
+  for (size_t i = 0; i < cq.size(); i++) {
+    /* Create OpenCL Kernel */
+    kernels.push_back(clCreateKernel(prog, "bitonicSort2", &ret));
+    assert(ret == CL_SUCCESS);
+    //create buffers
+    inBuffers.push_back(clCreateBuffer(ctx, CL_MEM_READ_ONLY, sz, NULL, &ret));
+    assert(ret == CL_SUCCESS);
+    outBuffers.push_back(clCreateBuffer(ctx, CL_MEM_READ_WRITE, sz, NULL, &ret));
+    assert(ret == CL_SUCCESS);
+    /* Set OpenCL Kernel Parameters */
+    ret = clSetKernelArg(kernels[i], 0, sizeof(cl_mem), (void *)&inBuffers[i]);
+    assert(ret == CL_SUCCESS);
+    // width
+    ret = clSetKernelArg(kernels[i], 3, sizeof(cl_uint), (void *)&maxN);
+    assert(ret == CL_SUCCESS);
+  }
 
   unsigned int runs = 0;
   {
     std::lock_guard<std::mutex> lock(running_mutex);
     running = true;
   }
+
   std::vector<Timer> times;
   while (ShouldRun() && runs < num_runs) {
 
@@ -79,13 +82,13 @@ void Sort::Work(unsigned int num_runs) {
       rndData[i] = (x << 14) | ((cl_uint)rand() & 0x3FFF);
     }
     // send data
-    for(auto q: cq){
-      ret = clEnqueueWriteBuffer(q, inBuffer, CL_TRUE, 0, sz, rndData, 0, NULL, NULL); // blocking
+    for (size_t i = 0; i < cq.size(); i++) {
+      ret = clEnqueueWriteBuffer(cq[i], inBuffers[i], CL_TRUE, 0, sz, rndData, 0, NULL, NULL); // blocking
+      assert(ret == CL_SUCCESS);
     }
     for (auto q : cq) {
       clFinish(q); // Wait untill all commands executed.
     }
-   
 
     /*
     * 2^numStages should be equal to length.
@@ -96,11 +99,10 @@ void Sort::Work(unsigned int num_runs) {
     for (temp = maxN; temp > 2; temp >>= 1)
       ++numStages;
 
-
     Timer t = Timer(to_string(runs));
     // run the sort.
     size_t nThreads[1];
-    nThreads[0] = maxN /(2*4);
+    nThreads[0] = maxN / (2 * 4);
     size_t workGroup[1];
     workGroup[0] = wg;
     cl_event e;
@@ -110,14 +112,16 @@ void Sort::Work(unsigned int num_runs) {
 
     for (stage = 0; stage < numStages; stage++) {
       // stage of the algorithm
-      ret = clSetKernelArg(kernel, 1, sizeof(cl_uint), (void *)&stage);
-      assert(ret == CL_SUCCESS);
-      // Every stage has stage + 1 passes
-      for (passOfStage = stage; passOfStage >= 0; passOfStage--)
-      {
-        ret = clSetKernelArg(kernel, 2, sizeof(cl_uint), (void *)&passOfStage);
+      for (size_t i = 0; i < cq.size(); i++) {
+        ret = clSetKernelArg(kernels[i], 1, sizeof(cl_uint), (void *)&stage);
         assert(ret == CL_SUCCESS);
-
+      }
+      // Every stage has stage + 1 passes
+      for (passOfStage = stage; passOfStage >= 0; passOfStage--) {
+        for (size_t i = 0; i < cq.size(); i++) {
+          ret = clSetKernelArg(kernels[i], 2, sizeof(cl_uint), (void *)&passOfStage);
+          assert(ret == CL_SUCCESS);
+        }
         /*
         * Enqueue a kernel run call.
         * For simplicity, the groupsize used is 1.
@@ -125,13 +129,12 @@ void Sort::Work(unsigned int num_runs) {
         * Each thread writes a sorted pair.
         * So, the number of  threads (global) is half the length.
         */
-        size_t global_work_size[1] = { passOfStage ? nThreads[0] : nThreads[0] << 1 };
-        //ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
+        size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
+        // ret = clEnqueueNDRangeKernel(cq, kernel, 1, 0, nThreads, workGroup, NULL, 0, &e);
 
-        for (auto q : cq) {
-          ret = clEnqueueNDRangeKernel(q, kernel, 1, 0, global_work_size, NULL, 0, NULL, &e);
+        for (size_t i = 0; i < cq.size(); i++) {
+          ret = clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL, &e);
           assert(ret == CL_SUCCESS);
-
         }
         for (auto q : cq) {
           clFinish(q); // Wait untill all commands executed.
@@ -139,17 +142,17 @@ void Sort::Work(unsigned int num_runs) {
       }
     }
 
-    //stop timer here
+    // stop timer here
     t.Stop();
-    
+
     // Copy results from the memory buffer
     for (auto q : cq) {
-      cl_uint *outData = new cl_uint[maxN];
-      ret = clEnqueueReadBuffer(q, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
-      clFinish(q); // Wait untill all commands executed.
-    
-//      assert(CheckArrayOrder(outData, maxN, false));
-      delete outData;
+      // cl_uint *outData = new cl_uint[maxN];
+      // ret = clEnqueueReadBuffer(q, inBuffer, CL_TRUE, 0, sz, outData, 0, NULL, NULL);
+      // clFinish(q); // Wait untill all commands executed.
+
+      //      assert(CheckArrayOrder(outData, maxN, false));
+      //  delete outData;
     }
     ++runs;
     times.push_back(t);
