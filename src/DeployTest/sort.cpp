@@ -30,7 +30,6 @@ void Sort::Work(unsigned int num_runs) {
   int wg = 256;
   auto tid = this_thread::get_id();
   std::cout << DASH50 << "\n Sort Test, Thread(" << tid << ")\n";
-  char outstring[MEM_SIZE];
 
   auto prog = cl::load_program("sort.cl", ctx, CtxDevices);
 
@@ -107,8 +106,8 @@ void Sort::Work(unsigned int num_runs) {
     workGroup[0] = wg;
     cl_event e;
 
-    cl_int stage;
-    cl_int passOfStage;
+    cl_uint stage;
+    cl_uint passOfStage;
 
     for (stage = 0; stage < numStages; stage++) {
       // stage of the algorithm

@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <iostream>
 #include <vector>
 #include <assert.h>
@@ -120,9 +124,9 @@ int main(int argc, const char *argv[]) {
     return 0;
   }
   std::vector<std::string> badOptions;
-  int i;
+  
   if (!opt.gotRequired(badOptions)) {
-    for (i = 0; i < badOptions.size(); ++i) {
+    for (size_t i = 0; i < badOptions.size(); ++i) {
       std::cerr << "ERROR: Missing required option " << badOptions[i] << ".\n\n";
     }
     Usage(opt);
@@ -130,7 +134,7 @@ int main(int argc, const char *argv[]) {
   }
 
   if (!opt.gotExpected(badOptions)) {
-    for (i = 0; i < badOptions.size(); ++i) {
+    for (size_t i = 0; i < badOptions.size(); ++i) {
       std::cerr << "ERROR: Got unexpected number of arguments for option " << badOptions[i]
                 << ".\n\n";
     }
@@ -148,7 +152,7 @@ int main(int argc, const char *argv[]) {
     cout << "Batch mode selected";
     std::vector<int> list;
     opt.get("-b")->getInts(list);
-    for (int j = 0; j < list.size(); ++j) {
+    for (size_t j = 0; j < list.size(); ++j) {
       std::cout << " " << list[j];
     }
     selectedExp = list[0];
