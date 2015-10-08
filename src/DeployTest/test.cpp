@@ -51,7 +51,7 @@ void Test::Work(unsigned int num_runs) {
   while (ShouldRun() && runs < num_runs) {
     Timer t = Timer(to_string(runs));
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
-    wprintf(L" %c\t%u\t%Percent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
+    wprintf(L" %c\t%u\tPercent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
     //
     /* Execute OpenCL Kernel */
     ret = clEnqueueTask(cq[0], kernel, 0, NULL, NULL);

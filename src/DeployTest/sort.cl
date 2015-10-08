@@ -1,4 +1,5 @@
 
+
 //intel vectorised bitonic sort
 __kernel void  bitonicSort2(__global int4 * theArray,
   const uint stage,
