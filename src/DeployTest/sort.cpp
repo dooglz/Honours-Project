@@ -148,7 +148,7 @@ void Sort::Work(unsigned int num_runs) {
         delete[] tmpData;
       }
     }
-
+    
     // do one final sort, or possibly the first sort if 1 gpu
     for (cl_int stage = 0; stage < numStages; stage++) {
       // stage of the algorithm
@@ -175,7 +175,22 @@ void Sort::Work(unsigned int num_runs) {
         }
       }
     }
-
+    if (cq.size() == 2) {
+    //may be a pssobility that the 2 edge values arn't in the corrct place
+      cl_uint a = 0;
+      cl_uint b = 0;
+      //last value of 0
+      ret = clEnqueueReadBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint), sizeof(cl_uint),&a, 0, NULL, NULL);
+      assert(ret == CL_SUCCESS);
+      //fist value of 1
+      ret = clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &b, 0, NULL, NULL);
+      assert(ret == CL_SUCCESS);
+      if (a < b) {
+        //yup, swap them round
+        clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint), sizeof(cl_uint), &b, 0, NULL, NULL);
+        clEnqueueWriteBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &a, 0, NULL, NULL);
+      }
+    }
     // stop timer here
     t.Stop();
 #if VERIFY
