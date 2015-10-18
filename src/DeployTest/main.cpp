@@ -318,7 +318,7 @@ int main(int argc, const char *argv[]) {
       break;
     case LOADIN:
       cout << DASH50 << CLEARN "Starting, Type 0 to Quit \n" << DASH50 << std::endl;
-      exps[selectedExp]->Start(1000);
+      exps[selectedExp]->Start(100);
       st = WORK;
       break;
     case WORK:

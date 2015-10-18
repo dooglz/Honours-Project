@@ -1,5 +1,6 @@
 #include "sort.h"
 #include "utils.h"
+#include "Timer.h"
 #include <chrono> // std::chrono::seconds
 #include <thread>
 #include <stdio.h>
@@ -62,10 +63,12 @@ void Sort::Work(unsigned int num_runs) {
     std::lock_guard<std::mutex> lock(running_mutex);
     running = true;
   }
+  ResultFile r;
+  r.name = "GpuParrallelSort" + to_string(maxN);
+  r.headdings = { "time_writebuffer"};
 
-  std::vector<Timer> times;
   while (ShouldRun() && runs < num_runs) {
-
+    vector<unsigned long long> times;
     // printf(" thread Working\n");
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
     wprintf(L" %c\t%u\tPercent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
@@ -77,6 +80,7 @@ void Sort::Work(unsigned int num_runs) {
       rndData[i] = (x << 14) | ((cl_uint)rand() & 0x3FFF);
       rndData[i] = (x << 14) | ((cl_uint)rand() & 0x3FFF);
     }
+    Timer time_writebuffer;
     // send data
     for (size_t i = 0; i < cq.size(); i++) {
       cl_uint offset = (i * maxNPC);
@@ -87,7 +91,8 @@ void Sort::Work(unsigned int num_runs) {
     for (auto q : cq) {
       clFinish(q); // Wait untill all commands executed.
     }
-
+    time_writebuffer.Stop();
+    times.push_back(time_writebuffer.Duration_NS());
     /*
     * 2^numStages should be equal to length.
     * i.e the number of times you halve length to get 1 should be numStages
@@ -97,14 +102,20 @@ void Sort::Work(unsigned int num_runs) {
     for (temp = maxN; temp > 2; temp >>= 1)
       ++numStages;
 
-    Timer t = Timer(to_string(runs));
+   
     // run the sort.
     size_t nThreads[1];
     nThreads[0] = maxN / (2 * 4);
     cl_event e;
-
+    unsigned int swapcount = 0;
     if (cq.size() == 2) {
       for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
+
+        if (runs == 0) {
+          r.headdings.push_back("Sort_" + to_string(swapcount));
+          r.headdings.push_back("Swap_" + to_string(swapsize));
+        }
+        Timer time_sort_inner;
         for (cl_int stage = 0; stage < numStages; stage++) {
           // stage of the algorithm
           for (size_t i = 0; i < cq.size(); i++) {
@@ -130,7 +141,9 @@ void Sort::Work(unsigned int num_runs) {
             }
           }
         }
-
+        time_sort_inner.Stop();
+        times.push_back(time_sort_inner.Duration_NS());
+        Timer time_swap_inner;
         // now swap
         // read in the top of card 1
         cl_uint *tmpData = new cl_uint[swapsize];
@@ -146,9 +159,13 @@ void Sort::Work(unsigned int num_runs) {
         clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, (maxNPC - swapsize) * sizeof(cl_uint),
                              swapsize * sizeof(cl_uint), tmpData, 0, NULL, NULL);
         delete[] tmpData;
+        time_swap_inner.Stop();
+        times.push_back(time_swap_inner.Duration_NS());
+        ++swapcount;
       }
     }
-    
+   
+    Timer time_sort;
     // do one final sort, or possibly the first sort if 1 gpu
     for (cl_int stage = 0; stage < numStages; stage++) {
       // stage of the algorithm
@@ -175,6 +192,11 @@ void Sort::Work(unsigned int num_runs) {
         }
       }
     }
+    time_sort.Stop();
+    if (runs == 0) {
+      r.headdings.push_back("Sort_" + to_string(swapcount));
+    }
+    times.push_back(time_sort.Duration_NS());
     if (cq.size() == 2) {
     //may be a pssobility that the 2 edge values arn't in the corrct place
       cl_uint a = 0;
@@ -192,8 +214,8 @@ void Sort::Work(unsigned int num_runs) {
       }
     }
     // stop timer here
-    t.Stop();
-#if VERIFY
+
+    Timer time_copyback;
     // Copy results from the memory buffer
     cl_uint *outData = new cl_uint[maxN];
     for (size_t i = 0; i < cq.size(); i++) {
@@ -202,17 +224,24 @@ void Sort::Work(unsigned int num_runs) {
                                 NULL);
       clFinish(cq[i]); // Wait untill all commands executed.
     }
+    time_copyback.Stop();
+#if VERIFY
     assert(CheckArrayOrder(outData, maxN, false));
-    delete outData;
 #endif
+    delete outData;
+
+    if (runs == 0) {
+      r.headdings.push_back("Copy Back");
+    }
+    times.push_back(time_copyback.Duration_NS());
+    r.times.push_back(times);
     ++runs;
-    times.push_back(t);
   }
   delete[] rndData;
-  PrintToCSV("Run #", "Time", times, "sort_" + current_time_and_date());
-  printf("\n Sort finished\n");
+  r.CalcAvg();
+  r.PrintToCSV(r.name);
+  cout<<"\n Sort finished\n";
   {
-
     std::lock_guard<std::mutex> lock(running_mutex);
     running = false;
   }

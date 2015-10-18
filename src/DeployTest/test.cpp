@@ -47,9 +47,9 @@ void Test::Work(unsigned int num_runs) {
     std::lock_guard<std::mutex> lock(running_mutex);
     running = true;
   }
-  std::vector<Timer> times;
+
   while (ShouldRun() && runs < num_runs) {
-    Timer t = Timer(to_string(runs));
+
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
     wprintf(L" %c\t%u\tPercent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
     //
@@ -63,12 +63,11 @@ void Test::Work(unsigned int num_runs) {
     assert(s == "Hello, World!");
     //
     ++runs;
-    t.Stop();
-    times.push_back(t);
+
   }
   printf("\n thread stopping\n");
   {
-    PrintToCSV("Run #", "Time", times, "Test_" + current_time_and_date());
+
     std::lock_guard<std::mutex> lock(running_mutex);
     running = false;
   }

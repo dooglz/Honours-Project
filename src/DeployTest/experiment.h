@@ -8,19 +8,6 @@
 
 using namespace std;
 
-struct Timer {
-  chrono::steady_clock::time_point start;
-  chrono::steady_clock::time_point end;
-  string name;
-  Timer() { Start(); }
-  Timer(const string &n) {
-    name = n;
-    Start();
-  }
-  void Start() { start = chrono::steady_clock::now(); }
-  void Stop() { end = chrono::steady_clock::now(); }
-  const chrono::steady_clock::duration Duration() { return end - start; }
-};
 class Experiment {
 public:
   // Experiment();
@@ -45,11 +32,6 @@ protected:
   bool running;
   mutex should_run_mutex; // protects should_run
   mutex running_mutex;    // protects running
-
-  // print funcs
-  const void PrintToCSV(const string &collumn1, const string &collumn2,
-                                    const vector<Timer> &times, const string &filename);
-  const void PrintToCSV(const vector<vector<string>> v, const string &filename);
 
   template <typename T>
   const bool CheckArrayOrder(const T* a, const size_t size, const bool order) {

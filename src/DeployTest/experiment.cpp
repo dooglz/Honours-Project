@@ -86,34 +86,3 @@ bool Experiment::ShouldRun() {
   lock_guard<mutex> lock(should_run_mutex);
   return should_run;
 }
-
-const void Experiment::PrintToCSV(const string &collumn1, const string &collumn2,
-                                  const vector<Timer> &times, const string &filename) {
-  ofstream data(filename + ".csv", ofstream::out);
-  data << collumn1 << "," << collumn2 << endl;
-  for (auto d : times) {
-    data << d.name << "," << chrono::duration_cast<chrono::nanoseconds>(d.Duration()).count()
-         << endl;
-  }
-  data.close();
-  cout << "printed to" << filename << ".csv" << endl;
-}
-
-const void Experiment::PrintToCSV(const vector<vector<string>> v, const string &filename) {
-  ofstream data(filename + ".csv", ofstream::out);
-  bool b = true;
-  unsigned int i = 0;
-  while (b) {
-    b = false;
-    for (auto vec : v) {
-      if (i <= vec.size()) {
-        b = true;
-        data << vec[i] << ",";
-      }
-    }
-    data << endl;
-    ++i;
-  }
-  data.close();
-  cout << "printed to" << filename << ".csv" << endl;
-}
