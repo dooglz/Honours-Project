@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 #include <regex>
-#include <string>
+#include <string.h>
 using namespace std;
 const void ResultFile::PrintToCSV(const string &filename) {
   time_t rawtime;
