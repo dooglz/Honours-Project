@@ -225,7 +225,7 @@ void Sort::Work(unsigned int num_runs) {
       clFinish(cq[i]); // Wait untill all commands executed.
     }
     time_copyback.Stop();
-#if VERIFY
+#ifdef VERIFY
     assert(CheckArrayOrder(outData, maxN, false));
 #endif
     delete outData;
