@@ -7,7 +7,7 @@
 #include <iostream>
 #include <math.h>
 #include <assert.h>
-#define MEM_SIZE (128)
+#define POWER 19
 #define VERIFY true
 Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 
@@ -35,7 +35,7 @@ void Sort::Work(unsigned int num_runs) {
   auto prog = cl::load_program("sort.cl", ctx, CtxDevices);
 
   /* Create Sapce for Random Numbers */
-  cl_uint maxN = 1 << 8;
+  cl_uint maxN = 1 << POWER;
   cl_uint maxNPC = (cl_uint)floor(maxN / cq.size());
   size_t sz = maxN * sizeof(cl_uint);
   size_t szPC = maxNPC * sizeof(cl_uint);
@@ -65,7 +65,7 @@ void Sort::Work(unsigned int num_runs) {
   }
   ResultFile r;
   r.name = "GpuParrallelSort" + to_string(maxN);
-  r.headdings = { "time_writebuffer"};
+  r.headdings = {"time_writebuffer"};
 
   while (ShouldRun() && runs < num_runs) {
     vector<unsigned long long> times;
@@ -87,9 +87,12 @@ void Sort::Work(unsigned int num_runs) {
       ret = clEnqueueWriteBuffer(cq[i], inBuffers[i], CL_TRUE, 0, szPC, &rndData[offset], 0, NULL,
                                  NULL); // blocking
       assert(ret == CL_SUCCESS);
+      ret = clFinish(cq[i]); // Wait untill all commands executed.
+      assert(ret == CL_SUCCESS);
     }
     for (auto q : cq) {
-      clFinish(q); // Wait untill all commands executed.
+      ret = clFinish(q); // Wait untill all commands executed.
+      assert(ret == CL_SUCCESS);
     }
     time_writebuffer.Stop();
     times.push_back(time_writebuffer.Duration_NS());
@@ -102,15 +105,13 @@ void Sort::Work(unsigned int num_runs) {
     for (temp = maxN; temp > 2; temp >>= 1)
       ++numStages;
 
-   
     // run the sort.
     size_t nThreads[1];
     nThreads[0] = maxN / (2 * 4);
-    cl_event e;
+    cl_event e[2]; // todo dynamic
     unsigned int swapcount = 0;
     if (cq.size() == 2) {
       for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
-
         if (runs == 0) {
           r.headdings.push_back("Sort_" + to_string(swapcount));
           r.headdings.push_back("Swap_" + to_string(swapsize));
@@ -130,14 +131,26 @@ void Sort::Work(unsigned int num_runs) {
             }
 
             size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
-
             for (size_t i = 0; i < cq.size(); i++) {
               ret = clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL,
-                                           &e);
+                                           &e[i]);
               assert(ret == CL_SUCCESS);
             }
             for (auto q : cq) {
-              clFinish(q); // Wait untill all commands executed.
+              ret = clFinish(q); // Wait untill all commands executed.
+              if (ret != CL_SUCCESS) {
+                ret = clWaitForEvents(2, e);
+                cl_int info1 = 0;
+                ret = clGetEventInfo(e[0], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int),
+                                     (void *)&info1, NULL);
+
+                cl_int info2;
+                ret = clGetEventInfo(e[1], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int),
+                                     (void *)&info2, NULL);
+
+                ret = 0;
+              }
+              assert(ret == CL_SUCCESS);
             }
           }
         }
@@ -147,24 +160,41 @@ void Sort::Work(unsigned int num_runs) {
         // now swap
         // read in the top of card 1
         cl_uint *tmpData = new cl_uint[swapsize];
-        ret = clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, swapsize * sizeof(cl_uint),
-                                  tmpData, 0, NULL, NULL);
-        clFinish(cq[1]); // Wait untill all commands executed.
+        cl_uint a = swapsize * sizeof(cl_uint);
+        ret = clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, a, tmpData, 0, NULL, NULL);
+        assert(ret == CL_SUCCESS);
+
+        ret = clFinish(cq[1]); // Wait untill all commands executed.
+        assert(ret == CL_SUCCESS);
+
         // copy bottom of card 0 to top of card 1
-        clEnqueueCopyBuffer(cq[0], inBuffers[0], inBuffers[1],
-                            (maxNPC - swapsize) * sizeof(cl_uint), 0, swapsize * sizeof(cl_uint), 0,
-                            NULL, NULL);
-        clFinish(cq[0]); // Wait untill all commands executed.
-                         // write the top of card 1 to the bottom of card 0
-        clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, (maxNPC - swapsize) * sizeof(cl_uint),
-                             swapsize * sizeof(cl_uint), tmpData, 0, NULL, NULL);
+        ret = clEnqueueCopyBuffer(cq[0], inBuffers[0], inBuffers[1],
+                                  (maxNPC - swapsize) * sizeof(cl_uint), 0,
+                                  swapsize * sizeof(cl_uint), 0, NULL, NULL);
+        assert(ret == CL_SUCCESS);
+
+        ret = clFinish(cq[0]);
+        assert(ret == CL_SUCCESS);
+
+        // write the top of card 1 to the bottom of card 0
+        ret = clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE,
+                                   (maxNPC - swapsize) * sizeof(cl_uint),
+                                   swapsize * sizeof(cl_uint), tmpData, 0, NULL, NULL);
+        assert(ret == CL_SUCCESS);
+
+        // Wait untill all commands executed.
+        ret = clFinish(cq[0]);
+        assert(ret == CL_SUCCESS);
+        ret = clFinish(cq[1]);
+        assert(ret == CL_SUCCESS);
+
         delete[] tmpData;
         time_swap_inner.Stop();
         times.push_back(time_swap_inner.Duration_NS());
         ++swapcount;
       }
     }
-   
+
     Timer time_sort;
     // do one final sort, or possibly the first sort if 1 gpu
     for (cl_int stage = 0; stage < numStages; stage++) {
@@ -183,12 +213,13 @@ void Sort::Work(unsigned int num_runs) {
         size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
 
         for (size_t i = 0; i < cq.size(); i++) {
-          ret =
-              clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL, &e);
+          ret = clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL,
+                                       &e[i]);
           assert(ret == CL_SUCCESS);
         }
         for (auto q : cq) {
-          clFinish(q); // Wait untill all commands executed.
+          ret = clFinish(q); // Wait untill all commands executed.
+          assert(ret == CL_SUCCESS);
         }
       }
     }
@@ -198,19 +229,25 @@ void Sort::Work(unsigned int num_runs) {
     }
     times.push_back(time_sort.Duration_NS());
     if (cq.size() == 2) {
-    //may be a pssobility that the 2 edge values arn't in the corrct place
+      // may be a pssobility that the 2 edge values arn't in the corrct place
       cl_uint a = 0;
       cl_uint b = 0;
-      //last value of 0
-      ret = clEnqueueReadBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint), sizeof(cl_uint),&a, 0, NULL, NULL);
+      // last value of 0
+      ret = clEnqueueReadBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint),
+                                sizeof(cl_uint), &a, 0, NULL, NULL);
       assert(ret == CL_SUCCESS);
-      //fist value of 1
-      ret = clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &b, 0, NULL, NULL);
+      // fist value of 1
+      ret =
+          clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &b, 0, NULL, NULL);
       assert(ret == CL_SUCCESS);
       if (a < b) {
-        //yup, swap them round
-        clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint), sizeof(cl_uint), &b, 0, NULL, NULL);
-        clEnqueueWriteBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &a, 0, NULL, NULL);
+        // yup, swap them round
+        ret = clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint),
+                                   sizeof(cl_uint), &b, 0, NULL, NULL);
+        assert(ret == CL_SUCCESS);
+        ret = clEnqueueWriteBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &a, 0, NULL,
+                                   NULL);
+        assert(ret == CL_SUCCESS);
       }
     }
     // stop timer here
@@ -222,7 +259,9 @@ void Sort::Work(unsigned int num_runs) {
       cl_uint offset = (i * maxNPC);
       ret = clEnqueueReadBuffer(cq[i], inBuffers[i], CL_TRUE, 0, szPC, &outData[offset], 0, NULL,
                                 NULL);
-      clFinish(cq[i]); // Wait untill all commands executed.
+      assert(ret == CL_SUCCESS);
+      ret = clFinish(cq[i]); // Wait untill all commands executed.
+      assert(ret == CL_SUCCESS);
     }
     time_copyback.Stop();
 #ifdef VERIFY
@@ -240,7 +279,7 @@ void Sort::Work(unsigned int num_runs) {
   delete[] rndData;
   r.CalcAvg();
   r.PrintToCSV(r.name);
-  cout<<"\n Sort finished\n";
+  cout << "\n Sort finished\n";
   {
     std::lock_guard<std::mutex> lock(running_mutex);
     running = false;

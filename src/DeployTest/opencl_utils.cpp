@@ -286,7 +286,7 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-      cout << "  " << j + 1 << ".6 Global memory (bytes):" << readable_fs((unsigned int)ul)
+	  cout << "  " << j + 1 << ".6 Global memory (bytes):" << (unsigned int)ul << " - "<< readable_fs((unsigned int)ul)
            << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
@@ -307,6 +307,13 @@ const void PrintInfo() {
 
       clGetDeviceInfo(dev.id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(u), &u, NULL);
       cout << "  " << j + 1 << ".12 Parallel compute units:" << u << std::endl;
+	   
+	  clGetDeviceInfo(dev.id, CL_DEVICE_ADDRESS_BITS, sizeof(u), &u, NULL);
+	  cout << "  " << j + 1 << ".13 Address Bits:" << u << std::endl;
+
+	  clGetDeviceInfo(dev.id, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(ul), &ul, NULL);
+	  cout << "  " << j + 1 << ".14 Max alloc size: " << readable_fs((unsigned int)ul) << std::endl;
+	  
       ++j;
     }
     ++i;
