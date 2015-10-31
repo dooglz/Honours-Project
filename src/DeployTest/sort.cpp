@@ -48,7 +48,7 @@ void Sort::Work(unsigned int num_runs) {
     kernels.push_back(clCreateKernel(prog, "bitonicSort2", &ret));
     assert(ret == CL_SUCCESS);
     // create buffers
-    inBuffers.push_back(clCreateBuffer(ctx, CL_MEM_READ_ONLY, szPC, NULL, &ret));
+	inBuffers.push_back(clCreateBuffer(ctx, CL_MEM_READ_WRITE, szPC, NULL, &ret));
     assert(ret == CL_SUCCESS);
     /* Set OpenCL Kernel Parameters */
     ret = clSetKernelArg(kernels[i], 0, sizeof(cl_mem), (void *)&inBuffers[i]);
@@ -102,13 +102,15 @@ void Sort::Work(unsigned int num_runs) {
     */
     int temp;
     cl_int numStages = 0;
-    for (temp = maxN; temp > 2; temp >>= 1)
+	for (temp = maxNPC; temp > 2; temp >>= 1)
       ++numStages;
 
     // run the sort.
     size_t nThreads[1];
-    nThreads[0] = maxN / (2 * 4);
-    cl_event e[2]; // todo dynamic
+   // nThreads[0] = (maxN / (2 * 4))/2;
+	//nThreads[0] = maxNPC;
+	nThreads[0] = maxNPC / (2 * 4);
+	cl_event e[2]; // todo dynamic
     unsigned int swapcount = 0;
     if (cq.size() == 2) {
       for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
@@ -132,9 +134,25 @@ void Sort::Work(unsigned int num_runs) {
 
             size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
             for (size_t i = 0; i < cq.size(); i++) {
-              ret = clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL,
-                                           &e[i]);
+              ret = clEnqueueNDRangeKernel(cq[i], kernels[i], 
+				  1,	//work_dim
+				  0,	//global_work_offset
+				  global_work_size, //global_work_size
+				  NULL,	//local_work_size
+				  0,	//num_events_in_wait_list
+				  NULL, //event_wait_list
+                  &e[i] //event
+				  );
               assert(ret == CL_SUCCESS);
+
+			  ret = clFinish(cq[i]);
+			  if (ret != CL_SUCCESS) {
+				  ret = clWaitForEvents(1, &e[i]);
+				  cl_int info1 = 0;
+				  ret = clGetEventInfo(e[i], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int), (void *)&info1, NULL);
+				  ret = 0;
+			  }
+
             }
             for (auto q : cq) {
               ret = clFinish(q); // Wait untill all commands executed.

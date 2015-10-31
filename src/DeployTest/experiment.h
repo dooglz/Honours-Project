@@ -44,6 +44,16 @@ protected:
       }
       return true;
   }
-
+  template <typename T>
+  const bool CheckArraysEqual(const T* a, const T* b, const size_t size) {
+	  if (size < 1) { return true; }
+	  for (size_t i = 1; i < size; i++)
+	  {
+		  if (a[i] != b[i]){
+			  return false;
+		  }
+	  }
+	  return true;
+  }
 
 };
