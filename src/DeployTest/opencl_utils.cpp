@@ -286,8 +286,8 @@ const void PrintInfo() {
       printf("  %d.%d Image Support: %s\n", j + 1, 5, value ? "True" : "False");
 
       clGetDeviceInfo(dev.id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(ul), &ul, NULL);
-	  cout << "  " << j + 1 << ".6 Global memory (bytes):" << (unsigned int)ul << " - "<< readable_fs((unsigned int)ul)
-           << std::endl;
+      cout << "  " << j + 1 << ".6 Global memory (bytes):" << (unsigned int)ul << " - "
+           << readable_fs((unsigned int)ul) << std::endl;
 
       clGetDeviceInfo(dev.id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(ul), &ul, NULL);
       cout << "  " << j + 1 << ".7 Local memory (bytes):" << readable_fs((unsigned int)ul)
@@ -307,13 +307,13 @@ const void PrintInfo() {
 
       clGetDeviceInfo(dev.id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(u), &u, NULL);
       cout << "  " << j + 1 << ".12 Parallel compute units:" << u << std::endl;
-	   
-	  clGetDeviceInfo(dev.id, CL_DEVICE_ADDRESS_BITS, sizeof(u), &u, NULL);
-	  cout << "  " << j + 1 << ".13 Address Bits:" << u << std::endl;
 
-	  clGetDeviceInfo(dev.id, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(ul), &ul, NULL);
-	  cout << "  " << j + 1 << ".14 Max alloc size: " << readable_fs((unsigned int)ul) << std::endl;
-	  
+      clGetDeviceInfo(dev.id, CL_DEVICE_ADDRESS_BITS, sizeof(u), &u, NULL);
+      cout << "  " << j + 1 << ".13 Address Bits:" << u << std::endl;
+
+      clGetDeviceInfo(dev.id, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(ul), &ul, NULL);
+      cout << "  " << j + 1 << ".14 Max alloc size: " << readable_fs((unsigned int)ul) << std::endl;
+
       ++j;
     }
     ++i;
@@ -321,7 +321,7 @@ const void PrintInfo() {
 }
 
 const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
-  std::vector<cl_command_queue> &cmd_queue) {
+                        std::vector<cl_command_queue> &cmd_queue) {
   std::vector<cl_device_id> ids;
   for (auto d : devices) {
     ids.push_back(d.id);
@@ -343,7 +343,8 @@ const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
   // cl_int clReleaseContext (	cl_context context)
 }
 
-cl_program load_program(const string &filename, cl_context &context, const std::vector<Device> &devices) {
+cl_program load_program(const string &filename, cl_context &context,
+                        const std::vector<Device> &devices) {
 
   auto devIds = new cl_device_id[devices.size()];
   cl::DeviceVectorToIdArray(devices, devIds);
@@ -399,11 +400,9 @@ cl_program load_program(const string &filename, cl_context &context, const std::
   // Return program object
   return program;
 }
-const void DeviceVectorToIdArray(const std::vector<Device> &devices, cl_device_id * ids) {
-  for (size_t i = 0; i < devices.size(); i++)
-  {
+const void DeviceVectorToIdArray(const std::vector<Device> &devices, cl_device_id *ids) {
+  for (size_t i = 0; i < devices.size(); i++) {
     ids[i] = devices[i].id;
   }
 }
-
 }

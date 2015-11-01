@@ -13,12 +13,10 @@ const void ResultFile::PrintToCSV(const string &filename) {
   string safefilename = filename + "_" + ctime(&rawtime) + ".csv";
   std::replace(safefilename.begin(), safefilename.end(), ' ', '_');
   std::replace(safefilename.begin(), safefilename.end(), ':', '-');
-  safefilename.erase(
-    std::remove(safefilename.begin(), safefilename.end(), '\n'),
-    safefilename.end());
-  safefilename.erase(
-    std::remove(safefilename.begin(), safefilename.end(), '\r'),
-    safefilename.end());
+  safefilename.erase(std::remove(safefilename.begin(), safefilename.end(), '\n'),
+                     safefilename.end());
+  safefilename.erase(std::remove(safefilename.begin(), safefilename.end(), '\r'),
+                     safefilename.end());
   ofstream data(safefilename, ofstream::out);
 
   data << "name," << name.c_str() << endl;
@@ -60,7 +58,6 @@ const void ResultFile::PrintToCSV(const string &filename) {
   cout << "Printed to: " << safefilename << endl;
 }
 
-
 const void ResultFile::CalcAvg() {
   averages.clear();
   unsigned long long totalTime = 0;
@@ -92,20 +89,15 @@ const void SysInfo::Print() const {
   cout << "Cpu HYPTH:\t" << (cpu_hyperThreaded ? "true" : "false") << endl;
 }
 const string SysInfo::toString() const {
-  return ("Optimised Code," +
-    (prog_optimisation ? std::string("true") : std::string("false")) +
-    "\nDebug Mode," +
-    (prog_debugMode ? std::string("true") : std::string("false")) +
-    "\nCpu Vendor," + cpu_vendor + "\nCpu Name," + cpu_name +
-    "\nCpu Loigcal," + to_string(cpu_logical) + "\nCpu Cores," +
-    to_string(cpu_cores) + "\nCpu HYPTH," +
-    (cpu_hyperThreaded ? "true" : "false") + "\nCpu HWC," +
-    to_string(cpu_hardware_concurrency));
+  return ("Optimised Code," + (prog_optimisation ? std::string("true") : std::string("false")) +
+          "\nDebug Mode," + (prog_debugMode ? std::string("true") : std::string("false")) +
+          "\nCpu Vendor," + cpu_vendor + "\nCpu Name," + cpu_name + "\nCpu Loigcal," +
+          to_string(cpu_logical) + "\nCpu Cores," + to_string(cpu_cores) + "\nCpu HYPTH," +
+          (cpu_hyperThreaded ? "true" : "false") + "\nCpu HWC," +
+          to_string(cpu_hardware_concurrency));
 }
 
-ostream &operator<<(std::ostream &os, const SysInfo &obj) {
-  return os << obj.toString();
-}
+ostream &operator<<(std::ostream &os, const SysInfo &obj) { return os << obj.toString(); }
 
 void cpuID(unsigned i, unsigned regs[4]) {
 #ifdef _WIN32
@@ -113,15 +105,15 @@ void cpuID(unsigned i, unsigned regs[4]) {
 
 #else
   asm volatile("cpuid"
-    : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
-    : "a"(i), "c"(0));
-  // ECX is set to zero for CPUID function 4
+               : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
+               : "a"(i), "c"(0));
+// ECX is set to zero for CPUID function 4
 #endif
 }
 
 // https://stackoverflow.com/questions/150355/
 
-const uint16_t SysInfo::get_cpu_cores()const {
+const uint16_t SysInfo::get_cpu_cores() const {
   uint16_t cpu_cores = get_cpu_logical();
   unsigned int regs[4];
   if (get_cpu_vendor() == "GenuineIntel") {
@@ -129,8 +121,7 @@ const uint16_t SysInfo::get_cpu_cores()const {
     cpuID(4, regs);
     cpu_cores = ((regs[0] >> 26) & 0x1f) + 1; // EAX[31:26] + 1
 
-  }
-  else if (get_cpu_vendor() == "AuthenticAMD") {
+  } else if (get_cpu_vendor() == "AuthenticAMD") {
     // Get NC: Number of CPU cores - 1
     cpuID(0x80000008, regs);
     cpu_cores = ((unsigned)(regs[2] & 0xff)) + 1; // ECX[7:0] + 1
@@ -138,13 +129,13 @@ const uint16_t SysInfo::get_cpu_cores()const {
   return cpu_cores;
 }
 
-const uint16_t SysInfo::get_cpu_logical()const {
+const uint16_t SysInfo::get_cpu_logical() const {
   unsigned int regs[4];
   cpuID(1, regs);
   return (regs[1] >> 16) & 0xff; // EBX[23:16]
 }
 
-const string SysInfo::get_cpu_vendor()const {
+const string SysInfo::get_cpu_vendor() const {
   // Get vendor
   char vendor[12];
   unsigned int regs[4];
@@ -155,7 +146,7 @@ const string SysInfo::get_cpu_vendor()const {
   return string(vendor, 12);
 }
 
-const string SysInfo::get_cpu_name()const {
+const string SysInfo::get_cpu_name() const {
   unsigned int regs[4];
   char CPUBrandString[64];
   cpuID(0x80000000, regs);
@@ -174,18 +165,15 @@ const string SysInfo::get_cpu_name()const {
   // removing leading, trailing and extra spaces
   cpu_name = regex_replace(cpu_name, regex("^ +| +$|( ) +"), string("$1"));
   return cpu_name;
-
 }
-const bool SysInfo::get_cpu_hyperThreaded()const {
+const bool SysInfo::get_cpu_hyperThreaded() const {
   unsigned int regs[4];
   cpuID(1, regs);
   unsigned cpuFeatures = regs[3]; // EDX
-  return  cpuFeatures & (1 << 28) && cpu_cores < cpu_logical;
+  return cpuFeatures & (1 << 28) && cpu_cores < cpu_logical;
 }
 
 SysInfo::SysInfo()
-  : cpu_cores(get_cpu_cores()), cpu_logical(get_cpu_logical()),
-  cpu_hardware_concurrency(std::thread::hardware_concurrency()),
-  cpu_name(get_cpu_name()), cpu_vendor(get_cpu_vendor()),
-  cpu_hyperThreaded(get_cpu_hyperThreaded()) {
-}
+    : cpu_cores(get_cpu_cores()), cpu_logical(get_cpu_logical()),
+      cpu_hardware_concurrency(std::thread::hardware_concurrency()), cpu_name(get_cpu_name()),
+      cpu_vendor(get_cpu_vendor()), cpu_hyperThreaded(get_cpu_hyperThreaded()) {}

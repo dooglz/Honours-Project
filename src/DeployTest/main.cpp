@@ -2,21 +2,16 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <iostream>
 #include <vector>
 #include <assert.h>
 #include <CL/opencl.h>
+//
+#include "ezOptionParser.hpp"
 //
 #include "utils.h"
 #include "opencl_utils.h"
 #include "sort.h"
 #include "test.h"
-// for sleep
-#include <chrono>
-#include <thread>
-#include <string>
-#include <sstream>
-#include "ezOptionParser.hpp"
 
 using namespace std;
 
@@ -66,34 +61,6 @@ void initialise_opencl(vector<cl_platform_id> &platforms, vector<cl_device_id> &
   cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
 }
 
-template <class T> bool lexical_cast(T &result, const std::string &str) {
-  std::stringstream s(str);
-  return (s >> result && s.rdbuf()->in_avail() == 0);
-}
-
-template <class T, class U>
-T promptValidated(const std::string &message,
-                  std::function<bool(U)> condition = [](...) { return true; }) {
-  T input;
-  std::string buf;
-  while (!(std::cout << message,
-           std::getline(std::cin, buf) && lexical_cast<T>(input, buf) && condition(input))) {
-    if (std::cin.eof())
-      throw std::runtime_error("End of file reached!");
-  }
-  return input;
-}
-template <class T, class U>
-T nopromptValidated(std::function<bool(U)> condition = [](...) { return true; }) {
-  T input;
-  std::string buf;
-  while (!(std::getline(std::cin, buf) && lexical_cast<T>(input, buf) && condition(input))) {
-    if (std::cin.eof())
-      throw std::runtime_error("End of file reached!");
-  }
-  return input;
-}
-
 void Usage(ez::ezOptionParser &opt) {
   std::string usage;
   opt.getUsage(usage);
@@ -111,11 +78,13 @@ int main(int argc, const char *argv[]) {
 
   opt.add("", 0, 0, 0, "Display usage", "-h", "-help", "--help", "--usage");
 
-  opt.add("", 0, 3, ',', "Batch Mode,-b [test],[platform],[device]", "-b", "-batch",
-          "--batch");
+  opt.add("", 0, 3, ',', "Batch Mode,-b [test],[platform],[device]", "-b", "-batch", "--batch");
 
-  opt.add("", 0, 1, 0, "Output FileName, will overrite", "-f", "-file",
-          "--outputfile");
+  opt.add("", 0, 1, ',', "iterations,", "-i", "--iterations");
+
+  opt.add("", 0, -1, ',', "Experiment options", "-e");
+
+  opt.add("", 0, 1, 0, "Output FileName, will overrite", "-f", "-file", "--outputfile");
 
   opt.parse(argc, argv);
 
@@ -124,7 +93,7 @@ int main(int argc, const char *argv[]) {
     return 0;
   }
   std::vector<std::string> badOptions;
-  
+
   if (!opt.gotRequired(badOptions)) {
     for (size_t i = 0; i < badOptions.size(); ++i) {
       std::cerr << "ERROR: Missing required option " << badOptions[i] << ".\n\n";
@@ -161,6 +130,23 @@ int main(int argc, const char *argv[]) {
     std::cout << endl;
   }
 
+  uint16_t iterations = 100;
+  if (opt.isSet("-i")) {
+    int a;
+    opt.get("-b")->getInt(a);
+    iterations = a;
+  }
+
+  std::vector<int> expOptions;
+  if (opt.isSet("-e")) {
+    cout << "Experiemnt options ";
+    opt.get("-e")->getInts(expOptions);
+    for (size_t j = 0; j < expOptions.size(); ++j) {
+      std::cout << " " << expOptions[j];
+    }
+    std::cout << endl;
+  }
+
   // init cl
   cl::Init();
   cl::PrintInfo();
@@ -192,20 +178,20 @@ int main(int argc, const char *argv[]) {
         cout << "\nAvaialble Experiments:" << std::endl;
         cout << "\t0\tQuit" << std::endl;
         for (size_t i = 0; i < 2; i++) {
-          cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t" << exps[i]->description << std::endl;
+          cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t" << exps[i]->description
+               << std::endl;
         }
         // double num = promptValidated<double, double>("Enter any number: ");
         // cout << "The number is " << num << endl << endl;
         selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-          [](int i) { return (i >= 0 && i <= 2); });
-      }
-      else{
-        if (selectedExp <0 || selectedExp>2){ //todo betterv alidation
+                                                [](int i) { return (i >= 0 && i <= 2); });
+      } else {
+        if (selectedExp < 0 || selectedExp > 2) { // todo betterv alidation
           cout << "Invalid Test" << std::endl;
           return 1;
         }
       }
-  
+
       if (selectedExp == 0) {
         run = false;
         break;
@@ -229,8 +215,9 @@ int main(int argc, const char *argv[]) {
             promptValidated<unsigned int, unsigned int>("Choose an Platform: ", [](unsigned int j) {
               return (j >= 0 && j <= (2 + cl::total_num_platforms));
             });
-      }else{
-        if (selectedExp < 0 || selectedExp > (2 + cl::total_num_platforms)){ //todo better validation
+      } else {
+        if (selectedExp < 0 ||
+            selectedExp > (2 + cl::total_num_platforms)) { // todo better validation
           cout << "Invalid Platform" << std::endl;
           return 1;
         }
@@ -279,7 +266,6 @@ int main(int argc, const char *argv[]) {
             }
           }
         }
-        
 
         for (size_t i = 0; i < 5; i++) {
           if (selected[i] == true) {
@@ -287,12 +273,11 @@ int main(int argc, const char *argv[]) {
           }
         }
         delete[] selected;
-      }
-      else{
-        //batch
-         num_selected = 1;
-         sel_devices.push_back(*cl::platforms[selectedPlat].devices[selectedDev-2]);
-         selectedDev = 1;
+      } else {
+        // batch
+        num_selected = 1;
+        sel_devices.push_back(*cl::platforms[selectedPlat].devices[selectedDev - 2]);
+        selectedDev = 1;
       }
       if (selectedDev == 1) {
         if (num_selected == 0) {
@@ -317,23 +302,9 @@ int main(int argc, const char *argv[]) {
       st = CHOOSE;
       break;
     case LOADIN:
-      cout << DASH50 << CLEARN "Starting, Type 0 to Quit \n" << DASH50 << std::endl;
-      exps[selectedExp]->Start(100);
-      st = WORK;
-      break;
-    case WORK:
-      if (exps[selectedExp]->IsRunning()) {
-          if (!batch) {
-          // bare in mind that the program will block here.
-          int a = nopromptValidated<int, int>([](int j) { return (j >= 0); });
-          if (a == 0) {
-            cout << "Stopping" << std::endl;
-            exps[selectedExp]->Stop();
-          }
-        }
-      } else {
-        st = LOADOUT;
-      }
+      cout << DASH50 << CLEARN "Starting Experiment \n" << DASH50 << std::endl;
+      exps[selectedExp]->Start(100, expOptions);
+      st = LOADOUT;
       break;
     }
   }
