@@ -47,7 +47,7 @@ void Test::Start(unsigned int num_runs, const std::vector<int> options) {
   while (ShouldRun() && runs < num_runs) {
 
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
-    wprintf(L" %c\t%u\tPercent Done: %u%%  \t\t\r", Spinner(runs), runs, percentDone);
+    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%" << std::flush;
     //
     /* Execute OpenCL Kernel */
     ret = clEnqueueTask(cq[0], kernel, 0, NULL, NULL);
