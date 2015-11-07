@@ -72,7 +72,7 @@ endif(OpenCL_INCLUDE_DIRS)
 
 if (CUDA_FOUND)
 	message("CUDA found")
-	LIST(APPEND CMAKE_CXX_FLAGS "-std=c++11")
+	LIST(APPEND CUDA_NVCC_FLAGS "-std=c++11")
 else()
 	message("CUDA not found")
 endif()
