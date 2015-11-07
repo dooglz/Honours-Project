@@ -1,9 +1,10 @@
 #DeployTest
 
 # find all *cpp, *h in current dir and assign to var SRCS
-file( GLOB SRCS *.cpp *.h *.cl)
+file( GLOB SRCS *.cpp *.h *.cl *.cu)
 
-add_executable(DeployTest ${SRCS})
+#add_executable(DeployTest ${SRCS})
+CUDA_ADD_EXECUTABLE(DeployTest ${SRCS})
 
 if(${OpenCL_FOUND})
 	if(UNIX)

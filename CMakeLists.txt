@@ -37,6 +37,7 @@ SET( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/lib_${EX_PLATFOR
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 find_package(OpenCLCustom)
+find_package(CUDA REQUIRED)
 
 MESSAGE( "OpenCL_FOUND  ${OpenCL_FOUND}")
 MESSAGE( "OpenCL_INCLUDE_DIRS  ${OpenCL_INCLUDE_DIRS}")
@@ -68,5 +69,13 @@ endif()
 if(OpenCL_INCLUDE_DIRS)
 	include_directories (${OpenCL_INCLUDE_DIRS})
 endif(OpenCL_INCLUDE_DIRS)
+
+if (CUDA_FOUND)
+	message("CUDA found")
+else()
+	message("CUDA not found")
+endif()
+
+include_directories (${CUDA_INCLUDE_DIRS})
 
 add_subdirectory(src)

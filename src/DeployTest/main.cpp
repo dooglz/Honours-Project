@@ -11,6 +11,7 @@
 #include "utils.h"
 #include "opencl_utils.h"
 #include "sort.h"
+#include "cudaSort.h"
 #include "test.h"
 
 using namespace std;
@@ -160,9 +161,10 @@ int main(int argc, const char *argv[]) {
   }
   STATE st = CHOOSE;
   // create list of tests
-  Experiment *exps[2];
+  Experiment *exps[3];
   exps[0] = new Test();
   exps[1] = new Sort();
+  exps[2] = new CudaSort();
   bool run = true;
 
   // main loop
@@ -177,16 +179,16 @@ int main(int argc, const char *argv[]) {
         // print tests
         cout << "\nAvaialble Experiments:" << std::endl;
         cout << "\t0\tQuit" << std::endl;
-        for (size_t i = 0; i < 2; i++) {
-          cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t" << exps[i]->description
+        for (size_t i = 0; i < 3; i++) {
+          cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t\t" << exps[i]->description
                << std::endl;
         }
         // double num = promptValidated<double, double>("Enter any number: ");
         // cout << "The number is " << num << endl << endl;
         selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                                [](int i) { return (i >= 0 && i <= 2); });
+                                                [](int i) { return (i >= 0 && i <= 3); });
       } else {
-        if (selectedExp < 0 || selectedExp > 2) { // todo betterv alidation
+        if (selectedExp < 0 || selectedExp > 3) { // todo betterv alidation
           cout << "Invalid Test" << std::endl;
           return 1;
         }
