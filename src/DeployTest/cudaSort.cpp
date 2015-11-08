@@ -89,8 +89,22 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   running = true;
   should_run = true;
 
-  // malloc buffers
-
+  // malloc 
+  int32_t *gpu1SwapBuffer;
+  if (optmode == 1 || optmode == 2){
+    checkCudaErrors(cudaSetDevice(1));
+    checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, maxNPC / 2));
+    if (optmode == 2) {
+      std::cout << "attemptiung UVA p2p" << endl;
+      if (GPU_N != 2) {
+        cerr << "Need 2 gpus!" << endl;
+        return;
+      }
+      if (!cuda::enableUVA(0, 1)) {
+        return;
+      }
+    }
+  }
   cudaStream_t *streams = new cudaStream_t[GPU_N];
   uint32_t **inBuffers = new uint32_t *[GPU_N];
   uint32_t **hostBuffers = new uint32_t *[GPU_N];
@@ -106,17 +120,6 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   r.name = "GpuParallelCudaSort" + to_string(maxN);
   r.headdings = {"time_writebuffer"};
   r.attributes.push_back("Optimised Swapping, " + string(optimised ? "yes" : "no"));
-
-  if (optmode == 2) {
-    std::cout << "attemptiung UVA p2p" << endl;
-    if (GPU_N != 2) {
-      cerr << "Need 2 gpus!" << endl;
-      return;
-    }
-    if (!cuda::enableUVA(0, 1)) {
-      return;
-    }
-  }
 
   while (ShouldRun() && runs < num_runs) {
     vector<unsigned long long> times;
@@ -175,12 +178,11 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       Timer time_swap_inner;
       // Do swaps
 
-      uint32_t *tmpData = new uint32_t[swapsize];
       uint32_t a = swapsize * sizeof(uint32_t);
       if (optmode == 2) {
-        // only read back top of card 1 to main ram
+        //copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(1));
-        checkCudaErrors(cudaMemcpy(tmpData, inBuffers[1], a, cudaMemcpyDeviceToHost));
+        checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
 
         // copy bottom of card 0 to top of card 1
@@ -190,27 +192,26 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
         // write the top of card 1 to the bottom of card 0
         checkCudaErrors(cudaSetDevice(0));
-        // std::copy(tmpData, &tmpData[swapsize], &hostBuffers[0][(maxNPC - swapsize)]);
         checkCudaErrors(
-            cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], tmpData, a, cudaMemcpyHostToDevice));
+          cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a, cudaMemcpyHostToDevice));
         cudaDeviceSynchronize();
 
       } else if (optmode == 1) {
-        // only read back top of card 1 to main ram
+        //copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(1));
-        checkCudaErrors(cudaMemcpy(tmpData, inBuffers[1], a, cudaMemcpyDeviceToHost));
+        checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
+
         // copy bottom of card 0 to top of card 1
         checkCudaErrors(cudaMemcpyPeer(inBuffers[1], 1, &inBuffers[0][(maxNPC - swapsize)], 0, a));
         cudaDeviceSynchronize();
 
         // write the top of card 1 to the bottom of card 0
         checkCudaErrors(cudaSetDevice(0));
-        // std::copy(tmpData, &tmpData[swapsize], &hostBuffers[0][(maxNPC - swapsize)]);
-        checkCudaErrors(
-            cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], tmpData, a, cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpyPeer(&inBuffers[0][(maxNPC - swapsize)], 0, gpu1SwapBuffer, 1, a));
         cudaDeviceSynchronize();
       } else {
+        uint32_t *tmpData = new uint32_t[swapsize];
         // read back all data
         for (auto i = 0; i < GPU_N; i++) {
           checkCudaErrors(cudaSetDevice(i));
@@ -229,6 +230,8 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
         // write the top of card 1 to the bottom of card 0
         std::copy(tmpData, &tmpData[swapsize], &hostBuffers[0][(maxNPC - swapsize)]);
+        delete[] tmpData;
+
         // Copy data back to GPU
         for (auto i = 0; i < GPU_N; i++) {
           // Set device
@@ -238,6 +241,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
           checkCudaErrors(cudaMemcpy(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice));
           cudaDeviceSynchronize();
         }
+
       }
 
       // wait
@@ -247,7 +251,6 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         cudaDeviceSynchronize();
       }
 
-      delete[] tmpData;
       time_swap_inner.Stop();
       times.push_back(time_swap_inner.Duration_NS());
       ++swapcount;
