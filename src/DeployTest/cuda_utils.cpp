@@ -1,5 +1,7 @@
 #include "cuda_utils.h"
+#include "utils.h"
 #include <memory>
+#include <iostream>
 #include <cuda_runtime.h>
 #include <cuda.h>
 
@@ -61,91 +63,90 @@ const void PrintInfo() {
   int dev, driverVersion = 0, runtimeVersion = 0;
 
   for (dev = 0; dev < total_num_devices; ++dev) {
-    cudaSetDevice(dev);
-    cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, dev);
+    int j = 0;
+#define idx dev << "." << j++ << "\t"
 
-    printf("\nDevice %d: \"%s\"\n", dev, deviceProp.name);
+    cudaSetDevice(dev);
+    cudaDeviceProp p;
+    cudaGetDeviceProperties(&p, dev);
+    cout << endl << DASH50 << endl;
+    cout << "Device " << dev << ", " << p.name << endl;
 
     // Console log
     cudaDriverGetVersion(&driverVersion);
     cudaRuntimeGetVersion(&runtimeVersion);
-    printf("  CUDA Driver Version / Runtime Version          %d.%d / %d.%d\n", driverVersion / 1000,
-           (driverVersion % 100) / 10, runtimeVersion / 1000, (runtimeVersion % 100) / 10);
-    printf("  CUDA Capability Major/Minor version number:    %d.%d\n", deviceProp.major,
-           deviceProp.minor);
-
-    char msg[256];
-    printf(msg, "  Total amount of global memory:                 %.0f MBytes (%llu bytes)\n",
-              (float)deviceProp.totalGlobalMem / 1048576.0f,
-              (unsigned long long)deviceProp.totalGlobalMem);
-    printf("%s", msg);
-
-    printf("  (%2d) Multiprocessors, (%3d) CUDA Cores/MP:     %d CUDA Cores\n",
-           deviceProp.multiProcessorCount, _ConvertSMVer2Cores(deviceProp.major, deviceProp.minor),
-           _ConvertSMVer2Cores(deviceProp.major, deviceProp.minor) *
-               deviceProp.multiProcessorCount);
-    printf("  GPU Max Clock rate:                            %.0f MHz (%0.2f GHz)\n",
-           deviceProp.clockRate * 1e-3f, deviceProp.clockRate * 1e-6f);
+    cout << idx << "CUDA Driver Version:\t" << driverVersion / 1000 << "."
+         << (driverVersion % 100) / 10 << endl;
+    cout << idx << "CUDA Runtime Version:\t" << runtimeVersion / 1000 << "."
+         << (runtimeVersion % 100) / 10 << endl;
+    cout << idx << "CUDA Capability Major/Minor:\t" << p.major << "." << p.minor << endl;
+    cout << idx << "Total amount of global memory:\t" << readable_fs(p.totalGlobalMem) << endl;
+    cout << idx << "Multiprocessors:\t" << p.multiProcessorCount << endl;
+    cout << idx << "CUDA Cores/MP:\t" << _ConvertSMVer2Cores(p.major, p.minor) << endl;
+    cout << idx << "CUDA Cores:\t" << _ConvertSMVer2Cores(p.major, p.minor) * p.multiProcessorCount
+         << endl;
+    cout << idx << "GPU Max Clock rate:\t" << p.clockRate * 1e-3f << "MHz" << endl;
 
 #if CUDART_VERSION >= 5000
     // This is supported in CUDA 5.0 (runtime API device properties)
-    printf("  Memory Clock rate:                             %.0f Mhz\n",
-           deviceProp.memoryClockRate * 1e-3f);
-    printf("  Memory Bus Width:                              %d-bit\n", deviceProp.memoryBusWidth);
+    cout << idx << "Memory Clock rate:\t" << p.memoryClockRate * 1e-3f << "MHz" << endl;
+    cout << idx << "Memory Bus Width:\t" << p.memoryBusWidth << "bit" << endl;
 
-    if (deviceProp.l2CacheSize) {
-      printf("  L2 Cache Size:                                 %d bytes\n", deviceProp.l2CacheSize);
+    if (p.l2CacheSize) {
+      cout << idx << "L2 Cache Size:\t" << readable_fs(p.l2CacheSize) << endl;
     }
 #endif
+    cout << idx << "Maximum 1DTexture Dimension Size:\t" << p.maxTexture1D << endl;
+    cout << idx << "Maximum 2DTexture Dimension Size:\t" << p.maxTexture2D[0] << ","
+         << p.maxTexture2D[1] << endl;
+    cout << idx << "Maximum 3DTexture Dimension Size:\t" << p.maxTexture3D[0] << ","
+         << p.maxTexture3D[1] << "," << p.maxTexture3D[2] << endl;
 
-    printf(
-        "  Maximum Texture Dimension Size (x,y,z)         1D=(%d), 2D=(%d, %d), 3D=(%d, %d, %d)\n",
-        deviceProp.maxTexture1D, deviceProp.maxTexture2D[0], deviceProp.maxTexture2D[1],
-        deviceProp.maxTexture3D[0], deviceProp.maxTexture3D[1], deviceProp.maxTexture3D[2]);
-    printf("  Maximum Layered 1D Texture Size, (num) layers  1D=(%d), %d layers\n",
-           deviceProp.maxTexture1DLayered[0], deviceProp.maxTexture1DLayered[1]);
-    printf("  Maximum Layered 2D Texture Size, (num) layers  2D=(%d, %d), %d layers\n",
-           deviceProp.maxTexture2DLayered[0], deviceProp.maxTexture2DLayered[1],
-           deviceProp.maxTexture2DLayered[2]);
+    cout << idx << "Maximum Layered 1D Texture Size:\t" << p.maxTexture1DLayered[0] << ", "
+         << p.maxTexture1DLayered[1] << " Layers" << endl;
+    cout << idx << "Maximum Layered 2D Texture Size:\t" << p.maxTexture2DLayered[0] << ","
+         << p.maxTexture2DLayered[1] << ", " << p.maxTexture1DLayered[1] << " Layers" << endl;
 
-    printf("  Total amount of constant memory:               %lu bytes\n",
-           deviceProp.totalConstMem);
-    printf("  Total amount of shared memory per block:       %lu bytes\n",
-           deviceProp.sharedMemPerBlock);
-    printf("  Total number of registers available per block: %d\n", deviceProp.regsPerBlock);
-    printf("  Warp size:                                     %d\n", deviceProp.warpSize);
-    printf("  Maximum number of threads per multiprocessor:  %d\n",
-           deviceProp.maxThreadsPerMultiProcessor);
-    printf("  Maximum number of threads per block:           %d\n", deviceProp.maxThreadsPerBlock);
-    printf("  Max dimension size of a thread block (x,y,z): (%d, %d, %d)\n",
-           deviceProp.maxThreadsDim[0], deviceProp.maxThreadsDim[1], deviceProp.maxThreadsDim[2]);
-    printf("  Max dimension size of a grid size    (x,y,z): (%d, %d, %d)\n",
-           deviceProp.maxGridSize[0], deviceProp.maxGridSize[1], deviceProp.maxGridSize[2]);
-    printf("  Maximum memory pitch:                          %lu bytes\n", deviceProp.memPitch);
-    printf("  Texture alignment:                             %lu bytes\n",
-           deviceProp.textureAlignment);
-    printf("  Concurrent copy and kernel execution:          %s with %d copy engine(s)\n",
-           (deviceProp.deviceOverlap ? "Yes" : "No"), deviceProp.asyncEngineCount);
-    printf("  Run time limit on kernels:                     %s\n",
-           deviceProp.kernelExecTimeoutEnabled ? "Yes" : "No");
-    printf("  Integrated GPU sharing Host Memory:            %s\n",
-           deviceProp.integrated ? "Yes" : "No");
-    printf("  Support host page-locked memory mapping:       %s\n",
-           deviceProp.canMapHostMemory ? "Yes" : "No");
-    printf("  Alignment requirement for Surfaces:            %s\n",
-           deviceProp.surfaceAlignment ? "Yes" : "No");
-    printf("  Device has ECC support:                        %s\n",
-           deviceProp.ECCEnabled ? "Enabled" : "Disabled");
+    cout << idx << "Total amount of constant memory:\t" << readable_fs(p.totalConstMem) << endl;
+    cout << idx << "Total amount of shared memory per block:\t" << readable_fs(p.sharedMemPerBlock)
+         << endl;
+    cout << idx << "Total number of registers available per block:\t" << p.regsPerBlock << endl;
+    cout << idx << "Warp size:\t" << p.warpSize << endl;
+    cout << idx << "Maximum number of threads per multiprocessor:\t"
+         << p.maxThreadsPerMultiProcessor << endl;
+    cout << idx << "Maximum number of threads per block:\t" << p.maxThreadsPerBlock << endl;
+    cout << idx << "Max dimension size of a thread block(x,y,z):\t" << p.maxThreadsDim[0] << ","
+         << p.maxThreadsDim[1] << "," << p.maxThreadsDim[2] << endl;
+    cout << idx << "Max dimension size of a thread block(x,y,z):\t" << p.maxThreadsDim[0] << ","
+         << p.maxThreadsDim[1] << "," << p.maxThreadsDim[2] << endl;
+    cout << idx << "Max dimension size of a grid size(x,y,z):\t" << p.maxGridSize[0] << ","
+         << p.maxGridSize[1] << "," << p.maxGridSize[2] << endl;
+    cout << idx << "Maximum memory pitch:\t" << readable_fs(p.memPitch) << endl;
+    cout << idx << "Texture alignment:\t" << readable_fs(p.textureAlignment) << endl;
+
+    cout << idx << "Concurrent copy and kernel execution:\t" << (p.deviceOverlap ? "Yes" : "No")
+         << endl;
+    cout << idx << "copy engine(s):\t" << p.asyncEngineCount << endl;
+
+    cout << idx << "Run time limit on kernels:\t" << (p.kernelExecTimeoutEnabled ? "Yes" : "No")
+         << endl;
+    cout << idx << "Integrated GPU sharing Host Memory:\t" << (p.integrated ? "Yes" : "No") << endl;
+    cout << idx << "Support host page-locked memory mapping:\t"
+         << (p.canMapHostMemory ? "Yes" : "No") << endl;
+    cout << idx << "Alignment requirement for Surfaces:\t" << (p.surfaceAlignment ? "Yes" : "No")
+         << endl;
+    cout << idx << "Device has ECC support:\t" << (p.ECCEnabled ? "Yes" : "No") << endl;
+
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-    printf("  CUDA Device Driver Mode (TCC or WDDM):         %s\n",
-           deviceProp.tccDriver ? "TCC (Tesla Compute Cluster Driver)"
-                                : "WDDM (Windows Display Driver Model)");
+    cout << idx << "Device Driver Mode:\t" << (p.tccDriver ? "TCC (Tesla Compute Cluster Driver)"
+                                                           : "WDDM (Windows Display Driver Model)")
+         << endl;
+
 #endif
-    printf("  Device supports Unified Addressing (UVA):      %s\n",
-           deviceProp.unifiedAddressing ? "Yes" : "No");
-    printf("  Device PCI Domain ID / Bus ID / location ID:   %d / %d / %d\n",
-           deviceProp.pciDomainID, deviceProp.pciBusID, deviceProp.pciDeviceID);
+    cout << idx << "Supports Unified Addressing (UVA):\t" << (p.unifiedAddressing ? "Yes" : "No")
+         << endl;
+    cout << idx << "PCI Domain ID / Bus ID / location ID:\t" << p.pciDomainID << "/" << p.pciBusID
+         << "/" << p.pciDeviceID << endl;
 
     const char *sComputeMode[] = {
         "Default (multiple host threads can use ::cudaSetDevice() with device simultaneously)",
@@ -155,8 +156,7 @@ const void PrintInfo() {
         "Exclusive Process (many threads in one process is able to use ::cudaSetDevice() with this "
         "device)",
         "Unknown", NULL};
-    printf("  Compute Mode:\n");
-    printf("     < %s >\n", sComputeMode[deviceProp.computeMode]);
+    cout << idx << "ComputeMode:\t" << sComputeMode[p.computeMode] << endl;
   }
 
   // If there are 2 or more GPUs, query to determine whether RDMA is supported
@@ -173,8 +173,7 @@ const void PrintInfo() {
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
           // on Windows (64-bit), the Tesla Compute Cluster driver for windows must be enabled to
           // support this
-          &&
-          prop[i].tccDriver
+          && prop[i].tccDriver
 #endif
           ) {
         // This is an array of P2P capable GPUs
@@ -192,8 +191,9 @@ const void PrintInfo() {
             continue;
           }
           checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer, gpuid[i], gpuid[j]));
-          printf("> Peer access from %s (GPU%d) -> %s (GPU%d) : %s\n", prop[gpuid[i]].name,
-                 gpuid[i], prop[gpuid[j]].name, gpuid[j], can_access_peer ? "Yes" : "No");
+          cout << ">Peer access from " << prop[gpuid[i]].name << " (" << gpuid[i] << ") ->"
+               << prop[gpuid[j]].name << " (" << gpuid[j] << ") :\t"
+               << (can_access_peer ? "Yes" : "No") << endl;
         }
       }
     }
@@ -212,8 +212,15 @@ inline void __getLastCudaError(const char *errorMessage, const char *file, const
   cudaError_t err = cudaGetLastError();
 
   if (cudaSuccess != err) {
+    cudaGetErrorString(err);
+    cerr << " getLastCudaError() CUDA error, File:" << file << ", Line:" << line << endl
+         << "Code:" << (int)err << "," << errorMessage << endl
+         << cudaGetErrorString(err);
+
+    /*
     fprintf(stderr, "%s(%i) : getLastCudaError() CUDA error : %s : (%d) %s.\n", file, line,
             errorMessage, (int)err, cudaGetErrorString(err));
+    */
     cudaDeviceReset();
     exit(EXIT_FAILURE);
   }
