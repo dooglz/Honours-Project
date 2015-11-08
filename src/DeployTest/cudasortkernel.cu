@@ -216,7 +216,7 @@ __global__ void bitonic_sort_step(unsigned int *dev_values, int j, int k)
 
 void Runbitonic_sort_step(dim3 a, dim3 b, cudaStream_t stream, unsigned int *dev_values, int j, int k) {
   bitonic_sort_step << <a, b, 0, stream >> > (dev_values, j, k);
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 }
 
 

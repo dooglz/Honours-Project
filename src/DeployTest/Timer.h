@@ -45,12 +45,12 @@ ostream &operator<<(std::ostream &os, const SysInfo &obj);
 static const SysInfo SystemInfo;
 
 struct Timer {
-  chrono::steady_clock::time_point start;
-  chrono::steady_clock::time_point end;
+  chrono::high_resolution_clock::time_point start;
+  chrono::high_resolution_clock::time_point end;
   Timer() { Start(); }
-  void Start() { start = chrono::steady_clock::now(); }
-  void Stop() { end = chrono::steady_clock::now(); }
-  const chrono::steady_clock::duration Duration() { return end - start; }
+  void Start() { start = chrono::high_resolution_clock::now(); }
+  void Stop() { end = chrono::high_resolution_clock::now(); }
+  const chrono::high_resolution_clock::duration Duration() { return end - start; }
   unsigned long long Duration_NS() {
     return chrono::duration_cast<chrono::nanoseconds>(Duration()).count();
   };

@@ -138,6 +138,11 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
           }
         }
       }
+      for (auto i = 0; i < GPU_N; i++) {
+        checkCudaErrors(cudaSetDevice(i));
+        cudaDeviceSynchronize();
+        cudaStreamSynchronize(streams[i]);
+      }
 
       time_sort_inner.Stop();
       times.push_back(time_sort_inner.Duration_NS());
