@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cuda.h>
-
+#include <assert.h>
 using namespace std;
 
 namespace cuda {
@@ -230,8 +230,9 @@ void cuda::__getLastCudaError(const char *errorMessage, const char *file, const 
     fprintf(stderr, "%s(%i) : getLastCudaError() CUDA error : %s : (%d) %s.\n", file, line,
             errorMessage, (int)err, cudaGetErrorString(err));
     */
-    cudaDeviceReset();
-    exit(EXIT_FAILURE);
+    //cudaDeviceReset();
+    //exit(EXIT_FAILURE);
+    assert(false);
   }
 }
 

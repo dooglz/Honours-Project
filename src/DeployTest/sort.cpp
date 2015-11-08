@@ -12,6 +12,7 @@
 Sort::Sort() : Experiment(1, 4, "Sort", "Sorts Things") {}
 
 Sort::~Sort() {}
+uint32_t cmxount = 0;
 
 static cl_context ctx;
 static vector<cl::CLDevice> CtxDevices;
@@ -154,7 +155,7 @@ void Sort::Start(unsigned int num_runs, const std::vector<int> options) {
                                            &e[i]             // event
                                            );
               assert(ret == CL_SUCCESS);
-
+              cmxount++;
               ret = clFinish(cq[i]);
               if (ret != CL_SUCCESS) {
                 ret = clWaitForEvents(1, &e[i]);

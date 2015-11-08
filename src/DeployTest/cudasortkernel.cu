@@ -185,6 +185,40 @@ __global__ void bitonicSort2(int *inputArray, const unsigned int stage,
   }
 }
 
+__global__ void bitonic_sort_step(float *dev_values, int j, int k)
+{
+  unsigned int i, ixj; /* Sorting partners: i and ixj */
+  i = threadIdx.x + blockDim.x * blockIdx.x;
+  ixj = i^j;
+
+  /* The threads with the lowest ids sort the array. */
+  if ((ixj)>i) {
+    if ((i&k) == 0) {
+      /* Sort ascending */
+      if (dev_values[i]>dev_values[ixj]) {
+        /* exchange(i,ixj); */
+        float temp = dev_values[i];
+        dev_values[i] = dev_values[ixj];
+        dev_values[ixj] = temp;
+      }
+    }
+    if ((i&k) != 0) {
+      /* Sort descending */
+      if (dev_values[i]<dev_values[ixj]) {
+        /* exchange(i,ixj); */
+        float temp = dev_values[i];
+        dev_values[i] = dev_values[ixj];
+        dev_values[ixj] = temp;
+      }
+    }
+  }
+}
+
+void Runbitonic_sort_step(dim3 a, dim3 b, float *dev_values, int j, int k) {
+  bitonic_sort_step << <a, b >> > (dev_values,j, k);
+}
+
+
 void my_cuda_func(dim3 a, dim3 b, char *ab, int *bd) {
   hello << <a, b>>> (ab, bd);
   // cudaDeviceSynchronize();

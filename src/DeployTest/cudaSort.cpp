@@ -13,6 +13,7 @@
 #include <cuda_runtime.h>
 
 void my_cuda_func(dim3 a, dim3 b, char *ab, int *bd);
+void Runbitonic_sort_step(dim3 a, dim3 b, float *dev_values, int j, int k;
 void RunSortKernel(dim3 blocks, dim3 threads, int *theArray, const unsigned int stage,
   const unsigned int passOfStage, const unsigned int width);
 
@@ -38,7 +39,7 @@ void CudaSort::Shutdown() {}
 const int N = 16;
 const int blocksize = 16;
 const int threadsperblock = 512;
-
+uint32_t mxount =0;
 void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   cout << "\n cuda Sort\n";
   const int GPU_N = cuda::total_num_devices;
@@ -122,23 +123,14 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
           size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
           for (size_t i = 0; i < GPU_N; i++) {
-            int threadsperBlock = cuda::getBlockCount(threadsperblock, global_work_size[0]);
-            int blocks = global_work_size[0] / threadsperBlock;
+            unsigned int threadsperBlock = cuda::getBlockCount(threadsperblock, global_work_size[0]);
+            unsigned int blocks = global_work_size[0] / threadsperBlock;
             checkCudaErrors(cudaSetDevice(i));
-            RunSortKernel(blocks, threadsperBlock, (int*)inBuffers[i], arg_stage[i], arg_passOfStage[i], maxNPC);
+            dim3 a( threadsperBlock, 1);
+            dim3 b( blocks,1);
+            RunSortKernel(b, a, (int*)inBuffers[i], arg_stage[i], arg_passOfStage[i], maxNPC);
             getLastCudaError("reduceKernel() execution failed.\n");
 
-            /*
-            ret = clEnqueueNDRangeKernel(cq[i], kernels[i],
-                                         1,                // work_dim
-                                         0,                // global_work_offset
-                                         global_work_size, // global_work_size
-                                         NULL,             // local_work_size
-                                         0,                // num_events_in_wait_list
-                                         NULL,             // event_wait_list
-                                         &e[i]             // event
-                                         );
-                                         */
 
           }
           for (auto i = 0; i < GPU_N; i++) {
