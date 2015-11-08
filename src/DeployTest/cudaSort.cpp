@@ -12,7 +12,6 @@
 
 //#include <cuda.h>
 #include <cuda_runtime.h>
-#define optimised 2
 void my_cuda_func(dim3 a, dim3 b, char *ab, int *bd);
 void Runbitonic_sort_step(dim3 a, dim3 b, cudaStream_t stream, unsigned int *dev_values, int j,
                           int k);
@@ -117,9 +116,9 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   }
 
   ResultFile r;
-  r.name = "GpuParallelCudaSort" + to_string(maxN);
+  r.name = "GpuParallelCudaSort" + to_string(maxN) + "_" + to_string(optmode);
   r.headdings = {"time_writebuffer"};
-  r.attributes.push_back("Optimised Swapping, " + string(optimised ? "yes" : "no"));
+  r.attributes.push_back("Optimised Swapping mode, " + optmode);
 
   while (ShouldRun() && runs < num_runs) {
     vector<unsigned long long> times;
