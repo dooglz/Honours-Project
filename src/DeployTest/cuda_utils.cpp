@@ -236,6 +236,53 @@ void __getLastCudaError(const char *errorMessage, const char *file, const int li
   }
 }
 
+const bool enableUVA(const int gpu0, const int gpu1) {
+  int gpus[2] = {gpu0, gpu1};
+  cudaDeviceProp p[2];
+  if (sizeof(void *) != 8) {
+    cerr << "Non x64bit system!" << endl;
+    return false;
+  }
+  for (auto i = 0; i < 2; i++) {
+    
+    checkCudaErrors(cudaGetDeviceProperties(&p[i], gpus[i]));
+    if (p[i].major < 2) {
+      cerr << "Only boards based on Fermi can support P2P!" << endl;
+      return false;
+    }
+#ifdef _WIN32
+    if (!p[i].tccDriver) {
+      cerr << "on Windows (64-bit), the Tesla Compute Cluster driver for windows must be enabled!"
+           << endl;
+      return false;
+    }
+#endif
+    int can_access_peer;
+    checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer, gpus[i], gpus[!i]));
+    if (!can_access_peer) {
+      cerr << i << " Can't access peer " << !i << endl;
+      return false;
+    }
+  }
+  //looks good, let's enable
+  // Enable peer access
+  printf("Enabling peer access between GPU%d and GPU%d...\n", gpus[0], gpus[1]);
+  checkCudaErrors(cudaSetDevice(gpus[0]));
+  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[1], 0));
+  checkCudaErrors(cudaSetDevice(gpus[1]));
+  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[0], 0));
+
+  // Check that we got UVA on both devices
+  const bool has_uva = (p[gpus[0]].unifiedAddressing && p[gpus[1]].unifiedAddressing);
+
+  if (!has_uva)
+  {
+    cerr << "At least one of the two GPUs does NOT support UVA\n";
+    return false;
+  }
+  return true;
+}
+
 const char *_cudaGetErrorEnum(cudaError_t error) {
   switch (error) {
   case cudaSuccess:
