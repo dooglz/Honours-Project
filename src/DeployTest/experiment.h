@@ -17,7 +17,7 @@ public:
   const std::string name;
   const std::string description;
   virtual void Init(cl_context &context, std::vector<cl_command_queue> &cq,
-                    std::vector<cl::Device> &devices, cl::Platform platform);
+    std::vector<cl::CLDevice> &devices, cl::Platform platform);
   virtual void Shutdown();
   bool IsRunning();
   bool ShouldRun();

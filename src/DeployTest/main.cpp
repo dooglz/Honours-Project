@@ -5,11 +5,13 @@
 #include <vector>
 #include <assert.h>
 #include <CL/opencl.h>
+
 //
 #include "ezOptionParser.hpp"
 //
 #include "utils.h"
 #include "opencl_utils.h"
+#include "cuda_utils.h"
 #include "sort.h"
 #include "cudaSort.h"
 #include "test.h"
@@ -24,43 +26,6 @@ enum STATE {
   CHOOSEP,
   CHOOSED,
 };
-
-// Initialise OpenCL
-void initialise_opencl(vector<cl_platform_id> &platforms, vector<cl_device_id> &devices,
-                       cl_context &context, cl_command_queue &cmd_queue) {
-  // Status of OpenCL calls
-  cl_int status;
-
-  // Get the number of platforms
-  cl_uint num_platforms;
-  status = clGetPlatformIDs(0, nullptr, &num_platforms);
-  assert(status != CL_SUCCESS);
-
-  // Resize vector to store platforms
-  platforms.resize(num_platforms);
-
-  // Fill in platform vector
-  status = clGetPlatformIDs(num_platforms, &platforms[0], nullptr);
-  assert(status != CL_SUCCESS);
-
-  // Assume platform 0 is the one we want to use
-  // Get devices for platform 0
-  cl_uint num_devices;
-  status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, nullptr, &num_devices);
-  assert(status != CL_SUCCESS);
-
-  // Resize vector to store devices
-  devices.resize(num_devices);
-  // Fill in devices vector
-  status = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, &devices[0], nullptr);
-  assert(status != CL_SUCCESS);
-
-  // Create a context
-  context = clCreateContext(nullptr, num_devices, &devices[0], nullptr, nullptr, &status);
-
-  // Create a command queue
-  cmd_queue = clCreateCommandQueue(context, devices[0], 0, &status);
-}
 
 void Usage(ez::ezOptionParser &opt) {
   std::string usage;
@@ -151,8 +116,12 @@ int main(int argc, const char *argv[]) {
   // init cl
   cl::Init();
   cl::PrintInfo();
-  std::vector<cl::Device *> devices;
+  std::vector<cl::CLDevice *> devices;
   cl::GetRecommendedDevices(7, devices);
+
+  // init cuda
+  cuda::Init();
+  cuda::PrintInfo();
 
   // start menu system
   std::cout << "\nRecommended devices:\n";
@@ -233,7 +202,7 @@ int main(int argc, const char *argv[]) {
     } break;
     case CHOOSED: {
       unsigned int num_selected = 0;
-      std::vector<cl::Device> sel_devices;
+      std::vector<cl::CLDevice> sel_devices;
       if (!batch) {
         bool *selected = new bool[5];
         std::fill(selected, selected + sizeof(selected) / sizeof(bool), false);

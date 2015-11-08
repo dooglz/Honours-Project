@@ -13,12 +13,12 @@ Test::Test() : Experiment(1, 4, "Test", "Test Kernel Execution") {}
 Test::~Test() {}
 
 static cl_context ctx;
-static vector<cl::Device> CtxDevices;
+static vector<cl::CLDevice> CtxDevices;
 static std::vector<cl_command_queue> cq;
 unsigned int Test::GetMinCu() { return 1; }
 unsigned int Test::GetMax() { return 4; }
 void Test::Init(cl_context &context, std::vector<cl_command_queue> &commandQ,
-                std::vector<cl::Device> &devices, cl::Platform platform) {
+  std::vector<cl::CLDevice> &devices, cl::Platform platform) {
   CtxDevices = devices;
   ctx = context;
   cq = commandQ;

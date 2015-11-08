@@ -13,7 +13,7 @@ namespace cl {
 cl_uint total_num_devices;
 cl_uint total_num_platforms;
 Platform *platforms;
-Device *devices;
+CLDevice *devices;
 
 const unsigned int Init() {
   delete[] platforms;
@@ -45,11 +45,11 @@ const unsigned int Init() {
 
   // setup storage
   platforms = new Platform[total_num_platforms];
-  devices = new Device[total_num_devices];
+  devices = new CLDevice[total_num_devices];
 
   size_t deviceCount = 0;
   for (size_t i = 0; i < total_num_platforms; i++) {
-    std::vector<Device *> p_devices;
+    std::vector<CLDevice *> p_devices;
     cl_platform_id id = platform_ids[i];
     cl_uint num_devices;
     status = clGetDeviceIDs(id, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
@@ -82,7 +82,7 @@ const unsigned int Init() {
       string dev_name = value;
       free(value);
 
-      devices[deviceCount] = Device{dev_id, id, &platforms[i], cu, dev_name};
+      devices[deviceCount] = CLDevice{ dev_id, id, &platforms[i], cu, dev_name };
       p_devices.push_back(&devices[deviceCount]);
       ++deviceCount;
     }
@@ -93,7 +93,7 @@ const unsigned int Init() {
 }
 
 // return an array of cl_device_id ordered by speed
-const unsigned int GetFastestDevices(std::vector<Device *> &fastdevices) {
+const unsigned int GetFastestDevices(std::vector<CLDevice *> &fastdevices) {
   if (total_num_devices < 1) {
     return 1;
   }
@@ -103,18 +103,18 @@ const unsigned int GetFastestDevices(std::vector<Device *> &fastdevices) {
   }
   // get fastest devices, for now order by compliation units
   std::sort(fastdevices.begin(), fastdevices.end(),
-            [](Device *const &a, Device *const &b) { return a->computeUnits < b->computeUnits; });
+    [](CLDevice *const &a, CLDevice *const &b) { return a->computeUnits < b->computeUnits; });
   return 0;
 }
 
-const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<Device *> &devices) {
+const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<CLDevice *> &devices) {
   if (total_num_devices < 1) {
     return 1;
   }
   if (total_num_devices < count) {
     return GetRecommendedDevices(total_num_devices, devices);
   }
-  vector<Device *> fastdevices;
+  vector<CLDevice *> fastdevices;
   GetFastestDevices(fastdevices);
   if (count == 1) {
     devices.push_back(fastdevices[0]);
@@ -166,7 +166,7 @@ const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<D
     // TODO: do all this in the init stage
     unsigned int *score = new unsigned int[suitable_p.size()];
     for (unsigned int i = 0; i < fastdevices.size(); i++) {
-      Device *d = fastdevices[i];
+      CLDevice *d = fastdevices[i];
       for (unsigned int j = 0; j < suitable_p.size(); j++) {
         if (d->platform_id == suitable_p[j]) {
           score[j] += fastdevices.size() - i;
@@ -320,7 +320,7 @@ const void PrintInfo() {
   }
 }
 
-const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
+const cl_int GetContext(const std::vector<CLDevice> &devices, cl_context &context,
                         std::vector<cl_command_queue> &cmd_queue) {
   std::vector<cl_device_id> ids;
   for (auto d : devices) {
@@ -344,7 +344,7 @@ const cl_int GetContext(const std::vector<Device> &devices, cl_context &context,
 }
 
 cl_program load_program(const string &filename, cl_context &context,
-                        const std::vector<Device> &devices) {
+  const std::vector<CLDevice> &devices) {
 
   auto devIds = new cl_device_id[devices.size()];
   cl::DeviceVectorToIdArray(devices, devIds);
@@ -400,7 +400,7 @@ cl_program load_program(const string &filename, cl_context &context,
   // Return program object
   return program;
 }
-const void DeviceVectorToIdArray(const std::vector<Device> &devices, cl_device_id *ids) {
+const void DeviceVectorToIdArray(const std::vector<CLDevice> &devices, cl_device_id *ids) {
   for (size_t i = 0; i < devices.size(); i++) {
     ids[i] = devices[i].id;
   }
