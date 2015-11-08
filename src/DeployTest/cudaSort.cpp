@@ -13,8 +13,10 @@
 #include <cuda_runtime.h>
 
 void my_cuda_func(dim3 a, dim3 b, char *ab, int *bd);
+void RunSortKernel(dim3 blocks, dim3 threads, int *theArray, const unsigned int stage,
+  const unsigned int passOfStage, const unsigned int width);
 
-#define DEFAULTPOWER 12
+#define DEFAULTPOWER 18
 #define VERIFY true
 CudaSort::CudaSort() : Experiment(1, 4, "CudaSort", "Sorts Things") {}
 
@@ -35,6 +37,7 @@ void CudaSort::Shutdown() {}
 
 const int N = 16;
 const int blocksize = 16;
+const int threadsperblock = 512;
 
 void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   cout << "\n cuda Sort\n";
@@ -107,18 +110,24 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     for (uint32_t swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
       for (uint32_t stage = 0; stage < numStages; stage++) {
         // stage of the algorithm
-        for (size_t i = 0; i < cq.size(); i++) {
+        for (size_t i = 0; i < GPU_N; i++) {
           arg_stage[i] = stage;
         }
 
         // Every stage has stage + 1 passes
         for (int passOfStage = stage; passOfStage >= 0; passOfStage--) {
-          for (size_t i = 0; i < cq.size(); i++) {
+          for (size_t i = 0; i < GPU_N; i++) {
             arg_passOfStage[i] = passOfStage;
           }
 
           size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
-          for (size_t i = 0; i < cq.size(); i++) {
+          for (size_t i = 0; i < GPU_N; i++) {
+            int threadsperBlock = cuda::getBlockCount(threadsperblock, global_work_size[0]);
+            int blocks = global_work_size[0] / threadsperBlock;
+            checkCudaErrors(cudaSetDevice(i));
+            RunSortKernel(blocks, threadsperBlock, (int*)inBuffers[i], arg_stage[i], arg_passOfStage[i], maxNPC);
+            getLastCudaError("reduceKernel() execution failed.\n");
+
             /*
             ret = clEnqueueNDRangeKernel(cq[i], kernels[i],
                                          1,                // work_dim
@@ -130,7 +139,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
                                          &e[i]             // event
                                          );
                                          */
-            getLastCudaError("reduceKernel() execution failed.\n");
+
           }
           for (auto i = 0; i < GPU_N; i++) {
             cudaStreamSynchronize(streams[i]);
@@ -178,6 +187,18 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       ++swapcount;
     }
   }
+
+  //read back all data
+  for (auto i = 0; i < GPU_N; i++)
+  {
+    checkCudaErrors(cudaSetDevice(i));
+    checkCudaErrors(cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC, cudaMemcpyDeviceToHost, streams[i]));
+  }
+  for (auto i = 0; i < GPU_N; i++) {
+    cudaStreamSynchronize(streams[i]);
+  }
+  cout << 22;
+
   /*
   Timer time_sort;
   // do one final sort, or possibly the first sort if 1 gpu

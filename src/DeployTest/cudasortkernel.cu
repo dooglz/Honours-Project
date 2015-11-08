@@ -192,7 +192,7 @@ void my_cuda_func(dim3 a, dim3 b, char *ab, int *bd) {
 
 void RunSortKernel(dim3 blocks, dim3 threads, int *theArray, const unsigned int stage,
                    const unsigned int passOfStage, const unsigned int width) {
-  bitonicSort2 << <blocks, threads>>> (theArray, stage, passOfStage, width);
+  bitonicSort2<<<blocks, threads>>>(theArray, stage, passOfStage, width);
 
   // cudaDeviceSynchronize();
 }

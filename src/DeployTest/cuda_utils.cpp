@@ -8,6 +8,15 @@
 using namespace std;
 
 namespace cuda {
+
+  const int getBlockCount(const int maxBlockSize, const  int threads){
+  int a = maxBlockSize;
+  while (a > 2 && (threads % a) != 0){
+    a--;
+  }
+  return a;
+}
+
 int32_t total_num_devices;
 CudaDevice *devices;
 

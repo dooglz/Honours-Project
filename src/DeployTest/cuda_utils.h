@@ -42,4 +42,7 @@ void check(T result, char const *const func, const char *const file, int const l
 #define checkCudaErrors(val) cuda::check((val), #val, __FILE__, __LINE__)
 // This will output the proper error string when calling cudaGetLastError
 #define getLastCudaError(msg) cuda::__getLastCudaError(msg, __FILE__, __LINE__)
+
+
+const int getBlockCount(const int maxBlockSize, const int threads);
 }
