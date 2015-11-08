@@ -26,7 +26,7 @@ const cl_int GetContext(const std::vector<CLDevice> &devices, cl_context &contex
                         std::vector<cl_command_queue> &cmd_queue);
                         */
 // const void DeviceVectorToIdArray(const std::vector<CLDevice> &devices, cl_device_id *ids);
-static const char *_cudaGetErrorEnum(cudaError_t error);
+const char *_cudaGetErrorEnum(cudaError_t error);
 void __getLastCudaError(const char *errorMessage, const char *file, const int line);
 
 template <typename T>
@@ -39,7 +39,7 @@ void check(T result, char const *const func, const char *const file, int const l
     exit(EXIT_FAILURE);
   }
 }
-#define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
+#define checkCudaErrors(val) cuda::check((val), #val, __FILE__, __LINE__)
 // This will output the proper error string when calling cudaGetLastError
-#define getLastCudaError(msg) __getLastCudaError(msg, __FILE__, __LINE__)
+#define getLastCudaError(msg) cuda::__getLastCudaError(msg, __FILE__, __LINE__)
 }

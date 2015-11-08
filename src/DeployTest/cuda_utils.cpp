@@ -208,7 +208,7 @@ const void PrintInfo() {
   cudaDeviceReset();
 }
 
-inline void __getLastCudaError(const char *errorMessage, const char *file, const int line) {
+void cuda::__getLastCudaError(const char *errorMessage, const char *file, const int line) {
   cudaError_t err = cudaGetLastError();
 
   if (cudaSuccess != err) {
@@ -226,7 +226,7 @@ inline void __getLastCudaError(const char *errorMessage, const char *file, const
   }
 }
 
-static const char *_cudaGetErrorEnum(cudaError_t error) {
+const char *cuda::_cudaGetErrorEnum(cudaError_t error) {
   switch (error) {
   case cudaSuccess:
     return "cudaSuccess";

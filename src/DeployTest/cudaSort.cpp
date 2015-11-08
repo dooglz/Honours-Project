@@ -1,4 +1,5 @@
 #include "cudaSort.h"
+#include "cuda_utils.h"
 #include "utils.h"
 #include "Timer.h"
 #include <chrono> // std::chrono::seconds
@@ -37,34 +38,243 @@ const int blocksize = 16;
 
 void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   cout << "\n cuda Sort\n";
+  const int GPU_N = cuda::total_num_devices;
+  uint32_t maxN = 1 << DEFAULTPOWER;
+  uint32_t maxNPC = (uint32_t)floor(maxN / GPU_N);
+  size_t sz = maxN * sizeof(uint32_t);
+  size_t szPC = maxNPC * sizeof(uint32_t);
+  uint32_t *rndData = new uint32_t[maxN];
+  for (cl_uint i = 0; i < maxN; i++) {
+    uint32_t x = (uint32_t)0;
+    rndData[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
+    rndData[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
+  }
 
-  char a[N] = "Hello \0\0\0\0\0\0";
-  int b[N] = {15, 10, 6, 0, -11, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  cudaStream_t *streams = new cudaStream_t[GPU_N];
+  uint32_t **inBuffers = new uint32_t *[GPU_N];
+  uint32_t **hostBuffers = new uint32_t *[GPU_N];
+  // Create streams for issuing GPU command asynchronously and allocate memory (GPU and System
+  // page-locked)
+  for (auto i = 0; i < GPU_N; i++) {
+    checkCudaErrors(cudaSetDevice(i));
+    checkCudaErrors(cudaStreamCreate(&streams[i]));
+    // Allocate memory
+    checkCudaErrors(cudaMalloc((void **)&inBuffers[i], szPC));
+    checkCudaErrors(cudaMallocHost((void **)&hostBuffers[i], szPC));
 
-  char *ad;
-  int *bd;
-  const int csize = N * sizeof(char);
-  const int isize = N * sizeof(int);
+    // move rnd numbers into gpu readable host memory
+    for (auto j = 0; j < maxNPC; j++) {
+      uint32_t offset = (i * maxNPC);
+      hostBuffers[i][j] = rndData[j + offset];
+    }
+  }
 
-  printf("%s", a);
+  // Copy data to GPU, launch the kernel and copy data back. All asynchronously
+  for (auto i = 0; i < GPU_N; i++) {
+    // Set device
+    checkCudaErrors(cudaSetDevice(i));
 
-  cudaMalloc((void **)&ad, csize);
-  cudaMalloc((void **)&bd, isize);
-  cudaMemcpy(ad, a, csize, cudaMemcpyHostToDevice);
-  cudaMemcpy(bd, b, isize, cudaMemcpyHostToDevice);
+    // Copy input data from CPU
+    checkCudaErrors(
+        cudaMemcpyAsync(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice, streams[i]));
+  }
+  // wait
+  for (auto i = 0; i < GPU_N; i++) {
+    cudaStreamSynchronize(streams[i]);
+  }
+  //args emulation
+  int ** arg_inputArray = new int*[GPU_N];
+  unsigned int * arg_stage = new unsigned int[GPU_N];
+  unsigned int * arg_passOfStage = new unsigned int[GPU_N];
+  unsigned int * arg_width = new unsigned int[GPU_N];
 
-  dim3 dimBlock(blocksize, 1);
-  dim3 dimGrid(1, 1);
+  /*
+  * 2^numStages should be equal to length.
+  * i.e the number of times you halve length to get 1 should be numStages
+  */
+  int temp;
+  uint32_t numStages = 0;
+  for (temp = maxNPC; temp > 2; temp >>= 1) {
+    ++numStages;
+  }
 
-  my_cuda_func(dimGrid, dimBlock, ad, bd);
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess)
-    printf("Error: %s\n", cudaGetErrorString(err));
+  // run the sort.
+  size_t nThreads[1];
+  nThreads[0] = maxNPC / (2 * 4);
 
-  cudaMemcpy(a, ad, csize, cudaMemcpyDeviceToHost);
-  cudaFree(ad);
-  cudaFree(bd);
+  unsigned int swapcount = 0;
+  if (GPU_N == 2) {
+    for (uint32_t swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
+      for (uint32_t stage = 0; stage < numStages; stage++) {
+        // stage of the algorithm
+        for (size_t i = 0; i < cq.size(); i++) {
+          arg_stage[i] = stage;
+        }
 
-  cout << "\n Sort finished\n";
-  running = false;
-};
+        // Every stage has stage + 1 passes
+        for (int passOfStage = stage; passOfStage >= 0; passOfStage--) {
+          for (size_t i = 0; i < cq.size(); i++) {
+            arg_passOfStage[i] = passOfStage;
+          }
+
+          size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
+          for (size_t i = 0; i < cq.size(); i++) {
+            /*
+            ret = clEnqueueNDRangeKernel(cq[i], kernels[i],
+                                         1,                // work_dim
+                                         0,                // global_work_offset
+                                         global_work_size, // global_work_size
+                                         NULL,             // local_work_size
+                                         0,                // num_events_in_wait_list
+                                         NULL,             // event_wait_list
+                                         &e[i]             // event
+                                         );
+                                         */
+            getLastCudaError("reduceKernel() execution failed.\n");
+          }
+          for (auto i = 0; i < GPU_N; i++) {
+            cudaStreamSynchronize(streams[i]);
+            getLastCudaError("reduceKernel() execution failed.\n");
+          }
+        }
+      }
+
+      //read back all data
+      for (auto i = 0; i < GPU_N; i++)
+      {
+        checkCudaErrors(cudaSetDevice(i));
+        checkCudaErrors(cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC, cudaMemcpyDeviceToHost, streams[i]));
+      }
+      for (auto i = 0; i < GPU_N; i++) {
+        cudaStreamSynchronize(streams[i]);
+      }
+
+      // read in the top of card 1 to temp
+      uint32_t *tmpData = new uint32_t[swapsize];
+      uint32_t a = swapsize * sizeof(uint32_t);
+      std::copy(hostBuffers[1], &hostBuffers[1][swapsize], tmpData);
+
+      // copy bottom of card 0 to top of card 1
+      std::copy(&hostBuffers[0][(maxNPC - swapsize)], &hostBuffers[0][(maxNPC - swapsize)+a], hostBuffers[1]);
+      // write the top of card 1 to the bottom of card 0
+      std::copy(tmpData, &tmpData[swapsize], &hostBuffers[0][(maxNPC - swapsize)]);
+
+      // Copy data back to GPU
+      for (auto i = 0; i < GPU_N; i++) {
+        // Set device
+        checkCudaErrors(cudaSetDevice(i));
+
+        // Copy input data from CPU
+        checkCudaErrors(
+          cudaMemcpyAsync(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice, streams[i]));
+      }
+      // wait
+      for (auto i = 0; i < GPU_N; i++) {
+        cudaStreamSynchronize(streams[i]);
+      }
+
+
+      delete[] tmpData;
+      ++swapcount;
+    }
+  }
+  /*
+  Timer time_sort;
+  // do one final sort, or possibly the first sort if 1 gpu
+  for (cl_int stage = 0; stage < numStages; stage++) {
+    // stage of the algorithm
+    for (size_t i = 0; i < cq.size(); i++) {
+      ret = clSetKernelArg(kernels[i], 1, sizeof(cl_uint), (void *)&stage);
+      assert(ret == CL_SUCCESS);
+    }
+    // Every stage has stage + 1 passes
+    for (cl_int passOfStage = stage; passOfStage >= 0; passOfStage--) {
+      for (size_t i = 0; i < cq.size(); i++) {
+        ret = clSetKernelArg(kernels[i], 2, sizeof(cl_uint), (void *)&passOfStage);
+        assert(ret == CL_SUCCESS);
+      }
+
+      size_t global_work_size[1] = {passOfStage ? nThreads[0] : nThreads[0] << 1};
+
+      for (size_t i = 0; i < cq.size(); i++) {
+        ret =
+            clEnqueueNDRangeKernel(cq[i], kernels[i], 1, 0, global_work_size, NULL, 0, NULL, &e[i]);
+        assert(ret == CL_SUCCESS);
+      }
+      for (auto q : cq) {
+        ret = clFinish(q); // Wait untill all commands executed.
+        assert(ret == CL_SUCCESS);
+      }
+    }
+  }
+  time_sort.Stop();
+  if (runs == 0) {
+    r.headdings.push_back("Sort_" + to_string(swapcount));
+  }
+  times.push_back(time_sort.Duration_NS());
+  if (cq.size() == 2) {
+    // may be a pssobility that the 2 edge values arn't in the corrct place
+    cl_uint a = 0;
+    cl_uint b = 0;
+    // last value of 0
+    ret = clEnqueueReadBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint), sizeof(cl_uint),
+                              &a, 0, NULL, NULL);
+    assert(ret == CL_SUCCESS);
+    // fist value of 1
+    ret = clEnqueueReadBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &b, 0, NULL, NULL);
+    assert(ret == CL_SUCCESS);
+    if (a < b) {
+      // yup, swap them round
+      ret = clEnqueueWriteBuffer(cq[0], inBuffers[0], CL_TRUE, szPC - sizeof(cl_uint),
+                                 sizeof(cl_uint), &b, 0, NULL, NULL);
+      assert(ret == CL_SUCCESS);
+      ret =
+          clEnqueueWriteBuffer(cq[1], inBuffers[1], CL_TRUE, 0, sizeof(cl_uint), &a, 0, NULL, NULL);
+      assert(ret == CL_SUCCESS);
+    }
+  }
+  // stop timer here
+
+  Timer time_copyback;
+  // Copy results from the memory buffer
+  cl_uint *outData = new cl_uint[maxN];
+  for (size_t i = 0; i < cq.size(); i++) {
+    cl_uint offset = (i * maxNPC);
+    ret =
+        clEnqueueReadBuffer(cq[i], inBuffers[i], CL_TRUE, 0, szPC, &outData[offset], 0, NULL, NULL);
+    assert(ret == CL_SUCCESS);
+    ret = clFinish(cq[i]); // Wait untill all commands executed.
+    assert(ret == CL_SUCCESS);
+  }
+  time_copyback.Stop();
+#ifdef VERIFY
+  assert(CheckArrayOrder(outData, maxN, false));
+#endif
+  delete outData;
+
+  if (runs == 0) {
+    r.headdings.push_back("Copy Back");
+  }
+  times.push_back(time_copyback.Duration_NS());
+  r.times.push_back(times);
+  ++runs;
+}
+*/
+// Cleanup and shutdown
+for (auto i = 0; i < GPU_N; i++) {
+  checkCudaErrors(cudaSetDevice(i));
+  checkCudaErrors(cudaFree(inBuffers[i]));
+  checkCudaErrors(cudaStreamDestroy(streams[i]));
+  checkCudaErrors(cudaFreeHost(hostBuffers[i]));
+  cudaDeviceReset();
+}
+
+delete streams;
+delete[] hostBuffers;
+delete[] inBuffers;
+delete[] rndData;
+
+cout << "\n Sort finished\n";
+running = false;
+}
+;
