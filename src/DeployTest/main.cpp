@@ -274,7 +274,7 @@ int main(int argc, const char *argv[]) {
       break;
     case LOADIN:
       cout << DASH50 << CLEARN "Starting Experiment \n" << DASH50 << std::endl;
-      exps[selectedExp]->Start(100, expOptions);
+      exps[selectedExp]->Start(300, expOptions);
       st = LOADOUT;
       break;
     }

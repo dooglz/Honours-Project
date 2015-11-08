@@ -8,6 +8,7 @@
 #include <iostream>
 #include <math.h>
 #include <assert.h>
+#include <string>
 
 //#include <cuda.h>
 #include <cuda_runtime.h>
@@ -19,7 +20,7 @@ void RunSortKernel(dim3 blocks, dim3 threads, cudaStream_t stream, int *theArray
                    const unsigned int stage, const unsigned int passOfStage,
                    const unsigned int width);
 
-#define DEFAULTPOWER 23
+#define DEFAULTPOWER 18
 #define VERIFY false
 CudaSort::CudaSort() : Experiment(1, 4, "CudaSort", "Sorts Things") {}
 
@@ -57,36 +58,50 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     rndData[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
   }
 
+  int temp;
+  uint32_t numStages = 0;
+  for (temp = maxNPC; temp > 2; temp >>= 1) {
+    ++numStages;
+  }
+  size_t nThreads[1];
+  nThreads[0] = maxNPC / (2 * 4);
+
   unsigned int runs = 0;
   running = true;
   should_run = true;
 
+//malloc buffers
+
+  cudaStream_t *streams = new cudaStream_t[GPU_N];
+  uint32_t **inBuffers = new uint32_t *[GPU_N];
+  uint32_t **hostBuffers = new uint32_t *[GPU_N];
+  for (auto i = 0; i < GPU_N; i++) {
+    checkCudaErrors(cudaSetDevice(i));
+    checkCudaErrors(cudaStreamCreate(&streams[i]));
+    // Allocate memory
+    checkCudaErrors(cudaMalloc((void **)&inBuffers[i], szPC));
+    checkCudaErrors(cudaMallocHost((void **)&hostBuffers[i], szPC));
+  }
+
+  ResultFile r;
+  r.name = "GpuParallelCudaSort" + to_string(maxN);
+  r.headdings = { "time_writebuffer" };
+  r.attributes.push_back("Optimised Swapping, " + string(optimised ? "yes": "no"));
   while (ShouldRun() && runs < num_runs) {
-    cudaStream_t *streams = new cudaStream_t[GPU_N];
-    uint32_t **inBuffers = new uint32_t *[GPU_N];
-    uint32_t **hostBuffers = new uint32_t *[GPU_N];
-    // Create streams for issuing GPU command asynchronously and allocate memory (GPU and System
-    // page-locked)
-    for (auto i = 0; i < GPU_N; i++) {
-      checkCudaErrors(cudaSetDevice(i));
-      checkCudaErrors(cudaStreamCreate(&streams[i]));
-      // Allocate memory
-      checkCudaErrors(cudaMalloc((void **)&inBuffers[i], szPC));
-      checkCudaErrors(cudaMallocHost((void **)&hostBuffers[i], szPC));
+    vector<unsigned long long> times;
+    unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
+    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
+      << std::flush;
 
-      // move rnd numbers into gpu readable host memory
-      for (auto j = 0; j < maxNPC; j++) {
-        uint32_t offset = (i * maxNPC);
-        hostBuffers[i][j] = rndData[j + offset];
-      }
+    //copy fresh rand data into host buffers
+    for (auto i = 0; i < GPU_N; i++) {
+      const uint32_t offset = (i * maxNPC);
+      std::copy(&rndData[offset], &rndData[offset + maxNPC], hostBuffers[i]);
     }
-
-    // Copy data to GPU, launch the kernel and copy data back. All asynchronously
+    Timer time_writebuffer;
+    // Copy data to GPU,
     for (auto i = 0; i < GPU_N; i++) {
-      // Set device
       checkCudaErrors(cudaSetDevice(i));
-
-      // Copy input data from CPU
       checkCudaErrors(
           cudaMemcpyAsync(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice, streams[i]));
     }
@@ -95,22 +110,17 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       cudaStreamSynchronize(streams[i]);
     }
 
-    /*
-    * 2^numStages should be equal to length.
-    * i.e the number of times you halve length to get 1 should be numStages
-    */
-    int temp;
-    uint32_t numStages = 0;
-    for (temp = maxNPC; temp > 2; temp >>= 1) {
-      ++numStages;
-    }
+    time_writebuffer.Stop();
+    times.push_back(time_writebuffer.Duration_NS());
 
     // run the sort.
-    size_t nThreads[1];
-    nThreads[0] = maxNPC / (2 * 4);
     unsigned int swapcount = 0;
     for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
-
+      if (runs == 0) {
+        r.headdings.push_back("Sort_" + to_string(swapcount));
+        r.headdings.push_back("Swap_" + to_string(swapsize));
+      }
+      Timer time_sort_inner;
       unsigned int threadsperBlock = cuda::getBlockCount(threadsperblock, maxNPC);
 
       dim3 blocks((maxNPC / threadsperBlock), 1);
@@ -128,6 +138,11 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
           }
         }
       }
+
+      time_sort_inner.Stop();
+      times.push_back(time_sort_inner.Duration_NS());
+      Timer time_swap_inner;
+    //Do swaps
 
       uint32_t *tmpData = new uint32_t[swapsize];
       uint32_t a = swapsize * sizeof(uint32_t);
@@ -184,9 +199,15 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       }
 
       delete[] tmpData;
+      time_swap_inner.Stop();
+      times.push_back(time_swap_inner.Duration_NS());
       ++swapcount;
     }
 
+    if (runs == 0) {
+      r.headdings.push_back("Copy Back");
+    }
+    Timer time_copyback;
     // read back all data
     for (auto i = 0; i < GPU_N; i++) {
       checkCudaErrors(cudaSetDevice(i));
@@ -196,25 +217,29 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     for (auto i = 0; i < GPU_N; i++) {
       cudaStreamSynchronize(streams[i]);
     }
-    for (auto i = 0; i < GPU_N; i++) {
-      checkCudaErrors(cudaSetDevice(i));
-      checkCudaErrors(cudaFree(inBuffers[i]));
-      checkCudaErrors(cudaStreamDestroy(streams[i]));
-      checkCudaErrors(cudaFreeHost(hostBuffers[i]));
-    }
-
-    delete streams;
-    delete[] hostBuffers;
-    delete[] inBuffers;
+    times.push_back(time_copyback.Duration_NS());
+    r.times.push_back(times);
     ++runs;
   }
+
+  for (auto i = 0; i < GPU_N; i++) {
+    checkCudaErrors(cudaSetDevice(i));
+    checkCudaErrors(cudaFree(inBuffers[i]));
+    checkCudaErrors(cudaStreamDestroy(streams[i]));
+    checkCudaErrors(cudaFreeHost(hostBuffers[i]));
+  }
+
+  delete streams;
+  delete[] hostBuffers;
+  delete[] inBuffers;
 
   // Cleanup and shutdown
   for (auto i = 0; i < GPU_N; i++) {
     cudaDeviceReset();
   }
   delete[] rndData;
-
+  r.CalcAvg();
+  r.PrintToCSV(r.name);
   cout << "\n Sort finished\n";
   running = false;
 };
