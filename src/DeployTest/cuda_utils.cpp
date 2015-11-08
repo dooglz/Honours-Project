@@ -76,7 +76,7 @@ const void PrintInfo() {
            deviceProp.minor);
 
     char msg[256];
-    sprintf_s(msg, "  Total amount of global memory:                 %.0f MBytes (%llu bytes)\n",
+    printf(msg, "  Total amount of global memory:                 %.0f MBytes (%llu bytes)\n",
               (float)deviceProp.totalGlobalMem / 1048576.0f,
               (unsigned long long)deviceProp.totalGlobalMem);
     printf("%s", msg);
