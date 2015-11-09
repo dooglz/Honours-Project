@@ -20,7 +20,7 @@ void RunSortKernel(dim3 blocks, dim3 threads, cudaStream_t stream, int *theArray
                    const unsigned int width);
 
 #define DEFAULTPOWER 18
-#define VERIFY false
+#define VERIFY 0
 CudaSort::CudaSort() : Experiment(1, 4, "CudaSort", "Sorts Things") {}
 
 CudaSort::~CudaSort() {}
@@ -273,7 +273,17 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     for (auto i = 0; i < GPU_N; i++) {
       cudaStreamSynchronize(streams[i]);
     }
+    time_copyback.Stop();
     times.push_back(time_copyback.Duration_NS());
+
+#if VERIFY == 1
+    uint32_t *outData = new uint32_t[maxN];
+    std::copy(&hostBuffers[0][0], &hostBuffers[0][maxNPC], outData);
+    std::copy(&hostBuffers[1][0], &hostBuffers[1][maxNPC], &outData[maxNPC]);
+    assert(CheckArrayOrder(outData, maxN, true));
+    delete outData;
+#endif
+
     r.times.push_back(times);
     ++runs;
   }
