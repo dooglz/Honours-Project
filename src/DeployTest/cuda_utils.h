@@ -45,4 +45,7 @@ void check(T result, char const *const func, const char *const file, int const l
 
 
 const int getBlockCount(const int maxBlockSize, const int threads);
+
+const bool enableUVA(const int gpu0, const int gpu1);
+
 }
