@@ -14,18 +14,8 @@
 #include "cuda_utils.h"
 #include "sort.h"
 #include "cudaSort.h"
-#include "test.h"
 
 using namespace std;
-
-enum STATE {
-  CHOOSE,
-  LOADIN,
-  LOADOUT,
-  WORK,
-  CHOOSEP,
-  CHOOSED,
-};
 
 void Usage(ez::ezOptionParser &opt) {
   std::string usage;
@@ -43,9 +33,14 @@ int main(int argc, const char *argv[]) {
   opt.footer = "Sam Serrels 2015\n";
 
   opt.add("", 0, 0, 0, "Display usage", "-h", "-help", "--help", "--usage");
-  opt.add("", 0, 3, ',', "Batch Mode,-b [test],[platform],[device]", "-b", "-batch", "--batch");
-  opt.add("", 0, 1, ',', "iterations,", "-i", "--iterations");
+
+  opt.add("", 0, 1, 0, "Batch Mode,-b [test]", "-b", "-batch", "--batch");
+  opt.add("", 0, 1, ',', "Batch Platform", "-p");
+  opt.add("", 0, -1, ',', "Batch Devices", "-d");
   opt.add("", 0, -1, ',', "Experiment options", "-e");
+
+  opt.add("", 0, 1, ',', "iterations,", "-i", "--iterations");
+
   opt.add("", 0, 1, 0, "Output FileName, will overrite", "-f", "-file", "--outputfile");
 
   opt.parse(argc, argv);
@@ -73,22 +68,29 @@ int main(int argc, const char *argv[]) {
     return 1;
   }
 
-  unsigned int selectedExp = 0;
-  unsigned int selectedPlat = 0;
-  unsigned int selectedDev = 0;
+  int selectedExp = 0;
+  int selectedPlat = 0;
+  std::vector<int> selectedDevices;
+  std::vector<int> expOptions;
 
   bool batch = false;
   if (opt.isSet("-b")) {
     batch = true;
     cout << "Batch mode selected";
-    std::vector<int> list;
-    opt.get("-b")->getInts(list);
-    for (size_t j = 0; j < list.size(); ++j) {
-      std::cout << " " << list[j];
+
+    opt.get("-b")->getInt(selectedExp);
+    opt.get("-p")->getInt(selectedPlat);
+    opt.get("-d")->getInts(selectedDevices);
+
+    if (opt.isSet("-e")) {
+      cout << "Experiemnt options ";
+      opt.get("-e")->getInts(expOptions);
+      for (size_t j = 0; j < expOptions.size(); ++j) {
+        std::cout << " " << expOptions[j];
+      }
+      std::cout << endl;
     }
-    selectedExp = list[0];
-    selectedPlat = list[1];
-    selectedDev = list[2];
+
     std::cout << endl;
   }
 
@@ -97,16 +99,6 @@ int main(int argc, const char *argv[]) {
     int a;
     opt.get("-b")->getInt(a);
     iterations = a;
-  }
-
-  std::vector<int> expOptions;
-  if (opt.isSet("-e")) {
-    cout << "Experiemnt options ";
-    opt.get("-e")->getInts(expOptions);
-    for (size_t j = 0; j < expOptions.size(); ++j) {
-      std::cout << " " << expOptions[j];
-    }
-    std::cout << endl;
   }
 
   // init cl
@@ -133,16 +125,15 @@ int main(int argc, const char *argv[]) {
   // main loop
 
   if (batch) {
-    if (selectedExp < 0 || selectedExp > 3) { // todo better validation
+    if (selectedExp < 0 || selectedExp > 2) { // todo better validation
       cout << "Invalid Test" << std::endl;
       return 1;
     }
-    exps[selectedExp]->Init2(true);
+    exps[selectedExp - 1]->Init2(true, selectedPlat, selectedDevices);
+    exps[selectedExp - 1]->Start(300, expOptions);
   } else {
     while (run) {
       selectedExp = 0;
-      selectedPlat = 0;
-      selectedDev = 0;
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
@@ -151,19 +142,20 @@ int main(int argc, const char *argv[]) {
              << std::endl;
       }
       selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                              [](int i) { return (i >= 0 && i <= 3); });
+                                              [](int i) { return (i >= 0 && i <= 2); });
       if (selectedExp == 0) {
         run = false;
         break;
       }
       selectedExp = selectedExp - 1;
-      exps[selectedExp]->Init2(false);
+      exps[selectedExp]->Init2(false, selectedPlat, selectedDevices);
       exps[selectedExp]->Start(300, expOptions);
     }
   }
 
-  delete cl::devices;
-  delete cuda::devices;
+  delete[] cl::CLdevices;
+  delete[] cuda::CudaDevices;
+
   for (auto e : exps) {
     delete e;
   }

@@ -14,7 +14,8 @@ public:
   virtual void Init(std::vector<cuda::CudaDevice> &devices);
   virtual void Start(unsigned int num_runs, const std::vector<int> options) = 0;
   ~CudaExperiment();
-  void Init2(bool batch);
+  void Init2(bool batch, int selectedPlat, std::vector<int> selectedDevices);
+
 protected:
   CudaExperiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
                  const string &description);

@@ -9,19 +9,19 @@ using namespace std;
 
 namespace cuda {
 
-  const int getBlockCount(const int maxBlockSize, const  int threads){
+const int getBlockCount(const int maxBlockSize, const int threads) {
   int a = maxBlockSize;
-  while (a > 2 && (threads % a) != 0){
+  while (a > 2 && (threads % a) != 0) {
     a--;
   }
   return a;
 }
 
 int32_t total_num_devices;
-CudaDevice *devices;
+CudaDevice *CudaDevices;
 
 const unsigned int Init() {
-  delete[] devices;
+  delete[] CudaDevices;
   total_num_devices = 0;
 
   cudaError_t error_id = cudaGetDeviceCount(&total_num_devices);
@@ -32,15 +32,14 @@ const unsigned int Init() {
     exit(EXIT_FAILURE);
   }
 
-  devices = new CudaDevice[total_num_devices];
+  CudaDevices = new CudaDevice[total_num_devices];
   for (int dev = 0; dev < total_num_devices; ++dev) {
-	  cudaSetDevice(dev);
-	  cudaDeviceProp p;
-	  cudaGetDeviceProperties(&p, dev);
-	  CudaDevice d = { dev, 0, p.name };
-	  devices[dev] = d;
+    cudaSetDevice(dev);
+    cudaDeviceProp p;
+    cudaGetDeviceProperties(&p, dev);
+    CudaDevice d = {dev, 0, p.name};
+    CudaDevices[dev] = d;
   }
-
 
   return 0;
 }
@@ -240,8 +239,8 @@ void __getLastCudaError(const char *errorMessage, const char *file, const int li
     fprintf(stderr, "%s(%i) : getLastCudaError() CUDA error : %s : (%d) %s.\n", file, line,
             errorMessage, (int)err, cudaGetErrorString(err));
     */
-    //cudaDeviceReset();
-    //exit(EXIT_FAILURE);
+    // cudaDeviceReset();
+    // exit(EXIT_FAILURE);
     assert(false);
   }
 }
@@ -254,7 +253,7 @@ const bool enableUVA(const int gpu0, const int gpu1) {
     return false;
   }
   for (auto i = 0; i < 2; i++) {
-    
+
     checkCudaErrors(cudaGetDeviceProperties(&p[i], gpus[i]));
     if (p[i].major < 2) {
       cerr << "Only boards based on Fermi can support P2P!" << endl;
@@ -274,7 +273,7 @@ const bool enableUVA(const int gpu0, const int gpu1) {
       return false;
     }
   }
-  //looks good, let's enable
+  // looks good, let's enable
   // Enable peer access
   printf("Enabling peer access between GPU%d and GPU%d...\n", gpus[0], gpus[1]);
   checkCudaErrors(cudaSetDevice(gpus[0]));
@@ -285,8 +284,7 @@ const bool enableUVA(const int gpu0, const int gpu1) {
   // Check that we got UVA on both devices
   const bool has_uva = (p[gpus[0]].unifiedAddressing && p[gpus[1]].unifiedAddressing);
 
-  if (!has_uva)
-  {
+  if (!has_uva) {
     cerr << "At least one of the two GPUs does NOT support UVA\n";
     return false;
   }

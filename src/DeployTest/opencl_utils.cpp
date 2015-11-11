@@ -13,11 +13,11 @@ namespace cl {
 cl_uint total_num_devices;
 cl_uint total_num_platforms;
 Platform *platforms;
-CLDevice *devices;
+CLDevice *CLdevices;
 
 const unsigned int Init() {
   delete[] platforms;
-  delete[] devices;
+  delete[] CLdevices;
   total_num_platforms = 0;
   total_num_devices = 0;
 
@@ -45,7 +45,7 @@ const unsigned int Init() {
 
   // setup storage
   platforms = new Platform[total_num_platforms];
-  devices = new CLDevice[total_num_devices];
+  CLdevices = new CLDevice[total_num_devices];
 
   size_t deviceCount = 0;
   for (size_t i = 0; i < total_num_platforms; i++) {
@@ -82,8 +82,8 @@ const unsigned int Init() {
       string dev_name = value;
       free(value);
 
-      devices[deviceCount] = CLDevice{ dev_id, id, &platforms[i], cu, dev_name };
-      p_devices.push_back(&devices[deviceCount]);
+      CLdevices[deviceCount] = CLDevice{dev_id, id, &platforms[i], cu, dev_name};
+      p_devices.push_back(&CLdevices[deviceCount]);
       ++deviceCount;
     }
     platforms[i].devices = p_devices;
@@ -98,16 +98,18 @@ const unsigned int GetFastestDevices(std::vector<CLDevice *> &fastdevices) {
     return 1;
   }
   for (size_t i = 0; i < total_num_devices; i++) {
-    auto d = &devices[i];
+    auto d = &CLdevices[i];
     fastdevices.push_back(d);
   }
   // get fastest devices, for now order by compliation units
-  std::sort(fastdevices.begin(), fastdevices.end(),
-    [](CLDevice *const &a, CLDevice *const &b) { return a->computeUnits < b->computeUnits; });
+  std::sort(fastdevices.begin(), fastdevices.end(), [](CLDevice *const &a, CLDevice *const &b) {
+    return a->computeUnits < b->computeUnits;
+  });
   return 0;
 }
 
-const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<CLDevice *> &devices) {
+const unsigned int GetRecommendedDevices(const unsigned int count,
+                                         std::vector<CLDevice *> &devices) {
   if (total_num_devices < 1) {
     return 1;
   }
@@ -344,7 +346,7 @@ const cl_int GetContext(const std::vector<CLDevice> &devices, cl_context &contex
 }
 
 cl_program load_program(const string &filename, cl_context &context,
-  const std::vector<CLDevice> &devices) {
+                        const std::vector<CLDevice> &devices) {
 
   auto devIds = new cl_device_id[devices.size()];
   cl::DeviceVectorToIdArray(devices, devIds);

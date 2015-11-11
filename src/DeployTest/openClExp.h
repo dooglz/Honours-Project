@@ -11,14 +11,14 @@ using namespace std;
 
 class OpenCLExperiment : public Experiment {
 public:
-	virtual void Init(cl_context &context, std::vector<cl_command_queue> &cq,
-		std::vector<cl::CLDevice> &devices, cl::Platform platform);
+  virtual void Init(cl_context &context, std::vector<cl_command_queue> &cq,
+                    std::vector<cl::CLDevice> &devices, cl::Platform platform);
   virtual void Start(unsigned int num_runs, const std::vector<int> options) = 0;
-  void Init2(bool batch);
+  void Init2(bool batch, int selectedPlat, std::vector<int> selectedDevices);
 
 protected:
-	OpenCLExperiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
-                 const string &description);
+  OpenCLExperiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
+                   const string &description);
 
   template <typename T>
   const bool CheckArrayOrder(const T *a, const size_t size, const bool order) {

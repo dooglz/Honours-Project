@@ -26,16 +26,17 @@ struct Platform {
 };
 
 extern Platform *platforms;
-extern CLDevice *devices;
+extern CLDevice *CLdevices;
 
 const unsigned int Init();
 const std::string DeviceTypeString(const cl_device_type type);
-const unsigned int GetRecommendedDevices(const unsigned int count, std::vector<CLDevice *> &devices);
+const unsigned int GetRecommendedDevices(const unsigned int count,
+                                         std::vector<CLDevice *> &devices);
 const void PrintInfo();
 const cl_int GetContext(const std::vector<CLDevice> &devices, cl_context &context,
                         std::vector<cl_command_queue> &cmd_queue);
 cl_program load_program(const std::string &filename, cl_context &context,
-  const std::vector<CLDevice> &devices);
+                        const std::vector<CLDevice> &devices);
 
 const void DeviceVectorToIdArray(const std::vector<CLDevice> &devices, cl_device_id *ids);
 }

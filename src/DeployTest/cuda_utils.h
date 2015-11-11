@@ -14,7 +14,7 @@ struct CudaDevice {
   std::string short_name;
 };
 
-extern CudaDevice *devices;
+extern CudaDevice *CudaDevices;
 
 const unsigned int Init();
 // const std::string DeviceTypeString(const cl_device_type type);
@@ -43,9 +43,7 @@ void check(T result, char const *const func, const char *const file, int const l
 // This will output the proper error string when calling cudaGetLastError
 #define getLastCudaError(msg) cuda::__getLastCudaError(msg, __FILE__, __LINE__)
 
-
 const int getBlockCount(const int maxBlockSize, const int threads);
 
 const bool enableUVA(const int gpu0, const int gpu1);
-
 }

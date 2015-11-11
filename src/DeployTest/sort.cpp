@@ -20,7 +20,7 @@ static std::vector<cl_command_queue> cq;
 unsigned int Sort::GetMinCu() { return 1; }
 unsigned int Sort::GetMax() { return 4; }
 void Sort::Init(cl_context &context, std::vector<cl_command_queue> &commandQ,
-  std::vector<cl::CLDevice> &devices, cl::Platform platform) {
+                std::vector<cl::CLDevice> &devices, cl::Platform platform) {
   CtxDevices = devices;
   ctx = context;
   cq = commandQ;

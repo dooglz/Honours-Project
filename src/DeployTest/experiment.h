@@ -19,7 +19,7 @@ public:
   virtual void Shutdown();
   bool IsRunning();
   bool ShouldRun();
-  virtual void Init2(bool b) = 0;
+  virtual void Init2(bool batch, int selectedPlat, std::vector<int> selectedDevices) = 0;
   virtual void Start(unsigned int num_runs, const std::vector<int> options) = 0;
   virtual void Stop();
 

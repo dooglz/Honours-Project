@@ -88,11 +88,11 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   running = true;
   should_run = true;
 
-  // malloc 
+  // malloc
   int32_t *gpu1SwapBuffer;
-  if (optmode == 1 || optmode == 2){
+  if (optmode == 1 || optmode == 2) {
     checkCudaErrors(cudaSetDevice(1));
-    checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, (maxNPC / 2)*sizeof(uint32_t)));
+    checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, (maxNPC / 2) * sizeof(uint32_t)));
     if (optmode == 2) {
       std::cout << "attemptiung UVA p2p" << endl;
       if (GPU_N != 2) {
@@ -184,7 +184,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
       uint32_t a = swapsize * sizeof(uint32_t);
       if (optmode == 2) {
-        //copy top of card 1 to it's swapbuffer
+        // copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(1));
         checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
@@ -196,12 +196,12 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
         // write the top of card 1 to the bottom of card 0
         checkCudaErrors(cudaSetDevice(0));
-        checkCudaErrors(
-          cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a, cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a,
+                                   cudaMemcpyHostToDevice));
         cudaDeviceSynchronize();
 
       } else if (optmode == 1) {
-        //copy top of card 1 to it's swapbuffer
+        // copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(1));
         checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
@@ -212,7 +212,8 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
         // write the top of card 1 to the bottom of card 0
         checkCudaErrors(cudaSetDevice(0));
-        checkCudaErrors(cudaMemcpyPeer(&inBuffers[0][(maxNPC - swapsize)], 0, gpu1SwapBuffer, 1, a));
+        checkCudaErrors(
+            cudaMemcpyPeer(&inBuffers[0][(maxNPC - swapsize)], 0, gpu1SwapBuffer, 1, a));
         cudaDeviceSynchronize();
       } else {
         uint32_t *tmpData = new uint32_t[swapsize];
@@ -245,7 +246,6 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
           checkCudaErrors(cudaMemcpy(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice));
           cudaDeviceSynchronize();
         }
-
       }
 
       // wait

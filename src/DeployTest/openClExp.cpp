@@ -15,8 +15,7 @@ OpenCLExperiment::OpenCLExperiment(const unsigned int minCu, const unsigned int 
 void OpenCLExperiment::Init(cl_context &context, std::vector<cl_command_queue> &cq,
                             std::vector<cl::CLDevice> &devices, cl::Platform platform){};
 
-void OpenCLExperiment::Init2(bool batch) {
-  unsigned int selectedPlat = 0;
+void OpenCLExperiment::Init2(bool batch, int selectedPlat, std::vector<int> selectedDevices) {
   if (!batch) {
     cout << "Experiment requires a Minimum number of " << minCu << " devices, and a maximum of "
          << maxCU << std::endl;
@@ -32,7 +31,7 @@ void OpenCLExperiment::Init2(bool batch) {
         promptValidated<unsigned int, unsigned int>("Choose an Platform: ", [](unsigned int j) {
           return (j >= 0 && j <= (2 + cl::total_num_platforms));
         });
-	selectedPlat = selectedPlat - 2;
+    selectedPlat = selectedPlat - 2;
     unsigned int selectedDev = 0;
     unsigned int num_selected = 0;
     std::vector<cl::CLDevice> sel_devices;
@@ -92,20 +91,17 @@ void OpenCLExperiment::Init2(bool batch) {
       return;
     }
   } else {
-    /*
-    if (selectedExp < 0 ||
-            selectedExp >(2 + cl::total_num_platforms)) { // todo better validation
-            cout << "Invalid Platform" << std::endl;
-            return 1;
+    cl_context context;
+    std::vector<cl_command_queue> cmd_queue;
+
+    std::vector<cl::CLDevice> sel_devices;
+    for (auto d : selectedDevices) {
+      sel_devices.push_back(cl::CLdevices[d]);
     }
-    */
+    if (sel_devices.size() == 0) {
+      sel_devices.push_back(cl::CLdevices[0]);
+    }
+    cl::GetContext(sel_devices, context, cmd_queue);
+    Init(context, cmd_queue, sel_devices, cl::platforms[selectedPlat]);
   }
-  /*
-  if (selectedPlat == 0) {
-          st = CHOOSE;
-          break;
-  }
-  selectedPlat = selectedPlat - 2;
-  st = CHOOSED;
-  */
 };
