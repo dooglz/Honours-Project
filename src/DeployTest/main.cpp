@@ -14,7 +14,7 @@
 #include "cuda_utils.h"
 #include "sort.h"
 #include "cudaSort.h"
-
+#include "clsort2.h"
 using namespace std;
 
 void Usage(ez::ezOptionParser &opt) {
@@ -117,15 +117,16 @@ int main(int argc, const char *argv[]) {
     std::cout << dev->short_name << "\n";
   }
   // create list of tests
-  Experiment *exps[2];
+  Experiment *exps[3];
   exps[0] = new Sort();
-  exps[1] = new CudaSort();
+  exps[1] = new Sort2();
+  exps[2] = new CudaSort();
   bool run = true;
 
   // main loop
 
   if (batch) {
-    if (selectedExp < 0 || selectedExp > 2) { // todo better validation
+    if (selectedExp < 0 || selectedExp > 3) { // todo better validation
       cout << "Invalid Test" << std::endl;
       return 1;
     }
@@ -137,12 +138,12 @@ int main(int argc, const char *argv[]) {
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
-      for (size_t i = 0; i < 2; i++) {
+      for (size_t i = 0; i < 3; i++) {
         cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t\t" << exps[i]->description
              << std::endl;
       }
       selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                              [](int i) { return (i >= 0 && i <= 2); });
+                                              [](int i) { return (i >= 0 && i <= 3); });
       if (selectedExp == 0) {
         run = false;
         break;
