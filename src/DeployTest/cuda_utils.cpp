@@ -32,6 +32,16 @@ const unsigned int Init() {
     exit(EXIT_FAILURE);
   }
 
+  devices = new CudaDevice[total_num_devices];
+  for (int dev = 0; dev < total_num_devices; ++dev) {
+	  cudaSetDevice(dev);
+	  cudaDeviceProp p;
+	  cudaGetDeviceProperties(&p, dev);
+	  CudaDevice d = { dev, 0, p.name };
+	  devices[dev] = d;
+  }
+
+
   return 0;
 }
 

@@ -8,7 +8,7 @@ namespace cuda {
 extern int32_t total_num_devices;
 
 struct CudaDevice {
-  // cl_device_id id;
+  unsigned int id;
   // cl_platform_id platform_id;
   unsigned int computeUnits;
   std::string short_name;

@@ -12,8 +12,6 @@ Experiment::Experiment(const unsigned int minCu, const unsigned int maxCU, const
 }
 
 Experiment::~Experiment() { Shutdown(); }
-void Experiment::Init(cl_context &context, std::vector<cl_command_queue> &cq,
-  std::vector<cl::CLDevice> &devices, cl::Platform platform){};
 
 void Experiment::Shutdown() {
   running = false;

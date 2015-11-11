@@ -21,7 +21,7 @@ void RunSortKernel(dim3 blocks, dim3 threads, cudaStream_t stream, int *theArray
 
 #define DEFAULTPOWER 18
 #define VERIFY 0
-CudaSort::CudaSort() : Experiment(1, 4, "CudaSort", "Sorts Things") {}
+CudaSort::CudaSort() : CudaExperiment(1, 4, "CudaSort", "Sorts Things") {}
 
 CudaSort::~CudaSort() {}
 

@@ -1,7 +1,7 @@
 #pragma once
-#include "experiment.h"
+#include "openClExp.h"
 
-class Sort : public Experiment {
+class Sort : public OpenCLExperiment {
 public:
   Sort();
   ~Sort();

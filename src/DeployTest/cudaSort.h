@@ -1,7 +1,7 @@
 #pragma once
-#include "experiment.h"
+#include "cudaExp.h"
 
-class CudaSort : public Experiment {
+class CudaSort : public CudaExperiment {
 public:
   CudaSort();
   ~CudaSort();

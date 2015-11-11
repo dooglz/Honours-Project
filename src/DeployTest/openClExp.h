@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <vector>
+#include "Experiment.h"
 #include "opencl_utils.h"
 #include <mutex>
 #include <thread>
@@ -8,30 +9,16 @@
 
 using namespace std;
 
-class Experiment {
+class OpenCLExperiment : public Experiment {
 public:
-  // Experiment();
-  ~Experiment();
-  const unsigned int minCu;
-  const unsigned int maxCU;
-  const std::string name;
-  const std::string description;
-  virtual void Shutdown();
-  bool IsRunning();
-  bool ShouldRun();
-  virtual void Init2(bool b) = 0;
+	virtual void Init(cl_context &context, std::vector<cl_command_queue> &cq,
+		std::vector<cl::CLDevice> &devices, cl::Platform platform);
   virtual void Start(unsigned int num_runs, const std::vector<int> options) = 0;
-  virtual void Stop();
+  void Init2(bool batch);
 
 protected:
-  Experiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
-             const string &description);
-  // thread workThread;
-  // virtual void Work(unsigned int num_runs) = 0;
-  bool should_run;
-  bool running;
-  // mutex should_run_mutex; // protects should_run
-  // mutex running_mutex;    // protects running
+	OpenCLExperiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
+                 const string &description);
 
   template <typename T>
   const bool CheckArrayOrder(const T *a, const size_t size, const bool order) {
