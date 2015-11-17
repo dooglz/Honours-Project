@@ -11,7 +11,8 @@
 
 #include "stdafx.h"
 #include "D3D12compute.h"
-
+#include <iostream> 
+#include <iomanip>
 // InterlockedCompareExchange returns the object's value if the 
 // comparison fails.  If it is already 0, then its value won't 
 // change and 0 will be returned.
@@ -371,21 +372,31 @@ void D3D12nBodyGravity::CreateParticleBuffers()
 
 	D3D12_HEAP_PROPERTIES defaultHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	D3D12_HEAP_PROPERTIES uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+  D3D12_HEAP_PROPERTIES readbackHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK);
 	D3D12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(dataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	D3D12_RESOURCE_DESC uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(dataSize);
 
+
+    ThrowIfFailed(m_device->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+      D3D12_HEAP_FLAG_NONE,
+      &uploadBufferDesc,
+      D3D12_RESOURCE_STATE_COPY_DEST,
+      nullptr,
+      IID_PPV_ARGS(&m_particleBufferReadBack)));
+      
 		// Create two buffers in the GPU, each with a copy of the particles data.
 		// The compute shader will update one of them while the rendering thread 
 		// renders the other. When rendering completes, the threads will swap 
 		// which buffer they work on.
 
-		ThrowIfFailed(m_device->CreateCommittedResource(
-			&defaultHeapProperties,
-			D3D12_HEAP_FLAG_NONE,
-			&bufferDesc,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			nullptr,
-			IID_PPV_ARGS(&m_particleBuffer0)));
+  ThrowIfFailed(m_device->CreateCommittedResource(
+    &defaultHeapProperties,
+    D3D12_HEAP_FLAG_NONE,
+    &bufferDesc,
+    D3D12_RESOURCE_STATE_COPY_DEST,
+    nullptr,
+    IID_PPV_ARGS(&m_particleBuffer0)));
 
 		ThrowIfFailed(m_device->CreateCommittedResource(
 			&defaultHeapProperties,
@@ -492,10 +503,6 @@ void D3D12nBodyGravity::DoCompute() {
   ID3D12GraphicsCommandList *pCommandList = m_computeCommandList.Get();
   ID3D12Fence *pFence = m_threadFences.Get();
   // Run the particle simulation.
-
-  {
-    ID3D12GraphicsCommandList *pCommandList = m_computeCommandList.Get();
-
     UINT srvIndex;
     UINT uavIndex;
     ID3D12Resource *pUavResource;
@@ -529,7 +536,6 @@ void D3D12nBodyGravity::DoCompute() {
 
     pCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pUavResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                                                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-  }
 
   // Close and execute the command list.
   ThrowIfFailed(pCommandList->Close());
@@ -547,6 +553,28 @@ void D3D12nBodyGravity::DoCompute() {
 
   ThrowIfFailed(pCommandAllocator->Reset());
   ThrowIfFailed(pCommandList->Reset(pCommandAllocator, m_computeState.Get()));
+
+//Let's copy?
+
+  pCommandList->CopyResource(m_particleBufferReadBack.Get(), pUavResource);
+
+  // Close and execute the command list.
+  ThrowIfFailed(pCommandList->Close());
+  pCommandQueue->ExecuteCommandLists(1, ppCommandLists);
+  // Wait for the compute shader to complete the simulation.
+  threadFenceValue = InterlockedIncrement(&m_threadFenceValues);
+  ThrowIfFailed(pCommandQueue->Signal(pFence, threadFenceValue));
+  ThrowIfFailed(pFence->SetEventOnCompletion(threadFenceValue, m_threadFenceEvents));
+  WaitForSingleObject(m_threadFenceEvents, INFINITE);
+  ThrowIfFailed(pCommandAllocator->Reset());
+  ThrowIfFailed(pCommandList->Reset(pCommandAllocator, m_computeState.Get()));
+
+  // Get system memory pointer
+  void* backdata;
+  ThrowIfFailed(m_particleBufferReadBack->Map(0, nullptr, &backdata));
+  float* aa = ((float*)backdata);
+  std::cout << std::setprecision(5) << aa[0] <<"\t" << aa[1] << "\t" << aa[2] << "\t" << aa[3] << "\t" << aa[4] <<std::endl;
+  
 }
 
 // Render the scene.

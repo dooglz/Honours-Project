@@ -103,6 +103,9 @@ private:
 	ComPtr<ID3D12Resource> m_particleBuffer1;
 	ComPtr<ID3D12Resource> m_particleBuffer0Upload;
 	ComPtr<ID3D12Resource> m_particleBuffer1Upload;
+
+  ComPtr<ID3D12Resource> m_particleBufferReadBack;
+
 	//ComPtr<ID3D12Resource> m_constantBufferGS;
 	//UINT8* m_pConstantBufferGSData;
 	ComPtr<ID3D12Resource> m_constantBufferCS;
