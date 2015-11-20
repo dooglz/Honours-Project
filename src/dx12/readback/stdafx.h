@@ -21,22 +21,16 @@
 
 #include <windows.h>
 
-
-#include <LM.h>
-#include <tchar.h>
-#include <wrl/client.h>
-#include <iostream>
-#include <string>
-#include <clocale>
-#include <stdexcept>
-
-
 #include <dxgi1_4.h>
 #include <d3d12.h>
 #include <D3Dcompiler.h>
-#include "d3dx12.h"
 #include <DirectXMath.h>
+
+#include "d3dx12.h"
 
 #include <wrl.h>
 #include <vector>
 #include <shellapi.h>
+
+#include <string>
+#include <iostream>
