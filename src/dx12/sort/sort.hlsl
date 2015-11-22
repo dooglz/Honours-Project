@@ -19,11 +19,12 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
 }
 */
 
-[numthreads(14, 1, 1)]
+[numthreads(1, 1, 1)]
 void CSMain(uint3 tid : SV_DispatchThreadID)
 {
 
-  Buf[tid.x] = tid.x + j + k;
+  //Buf[tid.x] = tid.x + j + k;
+  Buf[tid.x] = Buf[tid.x];
   /*
   unsigned int i, ixj; // Sorting partners: i and ixj
   i = threadIdx.x + blockDim.x * blockIdx.x;
