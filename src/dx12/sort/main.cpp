@@ -8,24 +8,19 @@
 
 using namespace std;
 using Microsoft::WRL::ComPtr;
-#define NSIZE 14
-#define NSIZEBYTES NSIZE*4
-namespace
-{
-  ComPtr<ID3D12Device> gDev;
+#define NSIZE 8
+#define NSIZEBYTES NSIZE * 4
+namespace {
+ComPtr<ID3D12Device> gDev;
 }
 
-void CHK(HRESULT hr)
-{
+void CHK(HRESULT hr) {
   if (FAILED(hr))
     throw runtime_error("HRESULT is failed value.");
 }
 
-void setResourceBarrier(ID3D12GraphicsCommandList* commandList,
-  ID3D12Resource* res,
-  D3D12_RESOURCE_STATES before,
-  D3D12_RESOURCE_STATES after)
-{
+void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
+                        D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
   D3D12_RESOURCE_BARRIER desc = {};
   desc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   desc.Transition.pResource = res;
@@ -36,9 +31,7 @@ void setResourceBarrier(ID3D12GraphicsCommandList* commandList,
   commandList->ResourceBarrier(1, &desc);
 }
 
-
-struct ConstantBufferCS
-{
+struct ConstantBufferCS {
   UINT j;
   UINT k;
 };
@@ -47,38 +40,61 @@ const UINT CBSIZE = sizeof(ConstantBufferCS);
 ComPtr<ID3D12Resource> m_constantBufferCS;
 ComPtr<ID3D12Resource> constantBufferCSUpload;
 
+
+void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12CommandQueue> cmdQueue,
+  ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso,
+  ComPtr<ID3D12Fence> fence) {
+  // Execute
+  CHK(cmdList->Close());
+  ID3D12CommandList *cmds = cmdList.Get();
+  cmdQueue->ExecuteCommandLists(1, &cmds);
+
+  ;
+  HANDLE fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  // Wait until GPU finished
+  CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
+  CHK(cmdQueue->Signal(fence.Get(), 1));
+  auto wait = WaitForSingleObject(fenceEveneHandle, 10000);
+  if (wait != WAIT_OBJECT_0)
+    throw runtime_error("Failed WaitForSingleObject().");
+
+  // Cleanup command
+  ThrowIfFailed(cmdAlloc->Reset());
+  ThrowIfFailed(cmdList->Reset(cmdAlloc.Get(), pso.Get()));
+  CloseHandle(fenceEveneHandle);
+}
+
+
 void createConstBuf(ComPtr<ID3D12Device> m_device) {
   const UINT bufferSize = sizeof(ConstantBufferCS);
 
   ThrowIfFailed(m_device->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-    D3D12_HEAP_FLAG_NONE,
-    &CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
-    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-    nullptr,
-    IID_PPV_ARGS(&m_constantBufferCS)));
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
+      &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+      nullptr, IID_PPV_ARGS(&m_constantBufferCS)));
 
   ThrowIfFailed(m_device->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-    D3D12_HEAP_FLAG_NONE,
-    &CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
-    D3D12_RESOURCE_STATE_GENERIC_READ,
-    nullptr,
-    IID_PPV_ARGS(&constantBufferCSUpload)));
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+      &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+      IID_PPV_ARGS(&constantBufferCSUpload)));
 }
 
-void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList,ComPtr<ID3D12Device> m_device, ConstantBufferCS cb) {
-  //ttransition back to a writable state
-  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
-
+void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device> m_device,
+                 ConstantBufferCS cb) {
+  // ttransition back to a writable state
+  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(),
+                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
 
   D3D12_SUBRESOURCE_DATA computeCBData = {};
-  computeCBData.pData = reinterpret_cast<UINT8*>(&cb);
+  computeCBData.pData = reinterpret_cast<UINT8 *>(&cb);
   computeCBData.RowPitch = CBSIZE;
   computeCBData.SlicePitch = computeCBData.RowPitch;
 
-  ThrowIfFailed(UpdateSubresources<1>(cmdList.Get(), m_constantBufferCS.Get(), constantBufferCSUpload.Get(), 0, 0, 1, &computeCBData));
-  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+  ThrowIfFailed(UpdateSubresources<1>(cmdList.Get(), m_constantBufferCS.Get(),
+                                      constantBufferCSUpload.Get(), 0, 0, 1, &computeCBData));
+  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
   /*
   // Close the command list and execute it to begin the initial GPU setup.
@@ -88,52 +104,64 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList,ComPtr<ID3D12Device> 
   */
 }
 
-
 void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
           ComPtr<ID3D12RootSignature> rootSignature, ComPtr<ID3D12PipelineState> pso,
-          ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> m_device) {
-  cmdList->SetComputeRootSignature(rootSignature.Get());
-  cmdList->SetPipelineState(pso.Get());
-  cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-  cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-  cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+          ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> m_device,
+          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc,
+          ComPtr<ID3D12Fence> fence) {
 
-  //cmdList->Dispatch(1, 1, 1);
-  
+
+  // cmdList->Dispatch(1, 1, 1);
+
   UINT j, k, ret;
- //  Major step 
+  //  Major step
   for (k = 2; k <= size; k <<= 1) {
-    //  Minor step 
+    //  Minor step
     for (j = k >> 1; j > 0; j = j >> 1) {
-      setConstBuf(cmdList, m_device, { j, k });
+      setConstBuf(cmdList, m_device, {j, k});
+
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+      cout << j << "," << k << endl;
+      cmdList->SetComputeRootSignature(rootSignature.Get());
+      cmdList->SetPipelineState(pso.Get());
+      cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+      cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+
       cmdList->Dispatch(size, 1, 1);
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
     }
   }
 }
 
-void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList,ComPtr<ID3D12Resource> bufferUpload, ComPtr<ID3D12Resource> bufferTarget) {
+void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Resource> bufferUpload,
+                ComPtr<ID3D12Resource> bufferTarget) {
 
   UINT rndData[NSIZE];
+  cout << endl;
   for (size_t i = 0; i < NSIZE; i++) {
     UINT x = (UINT)0;
     rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
     rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
+    cout << rndData[i] << ",";
   }
-
+  cout << endl;
   D3D12_SUBRESOURCE_DATA rnd = {};
   rnd.pData = (&rndData);
   rnd.RowPitch = NSIZEBYTES;
   rnd.SlicePitch = rnd.RowPitch;
 
-
-  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_DEST);
-  ThrowIfFailed(UpdateSubresources<1>(cmdList.Get(), bufferTarget.Get(), bufferUpload.Get(), 0, 0, 1, &rnd));
-  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
+  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
+  ThrowIfFailed(
+      UpdateSubresources<1>(cmdList.Get(), bufferTarget.Get(), bufferUpload.Get(), 0, 0, 1, &rnd));
+  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 }
 
-void proc()
-{
+
+
+void proc() {
   ComPtr<ID3D12CommandAllocator> cmdAlloc;
   ComPtr<ID3D12CommandQueue> cmdQueue;
 
@@ -150,34 +178,27 @@ void proc()
   ComPtr<ID3D12Resource> bufferUpload;
 
 #if _DEBUG
-  ID3D12Debug* debug = nullptr;
+  ID3D12Debug *debug = nullptr;
   D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
-  if (debug)
-  {
+  if (debug) {
     debug->EnableDebugLayer();
     debug->Release();
     debug = nullptr;
   }
 #endif /* _DEBUG */
-  ID3D12Device* dev;
-  CHK(D3D12CreateDevice(
-    nullptr,
-    D3D_FEATURE_LEVEL_11_0,
-    IID_PPV_ARGS(&dev)));
+  ID3D12Device *dev;
+  CHK(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
   gDev = dev;
 
-  CHK(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())));
+  CHK(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                   IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())));
 
   D3D12_COMMAND_QUEUE_DESC queueDesc = {};
   queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
   CHK(gDev->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(cmdQueue.ReleaseAndGetAddressOf())));
 
-  CHK(gDev->CreateCommandList(
-    0,
-    D3D12_COMMAND_LIST_TYPE_DIRECT,
-    cmdAlloc.Get(),
-    nullptr,
-    IID_PPV_ARGS(cmdList.ReleaseAndGetAddressOf())));
+  CHK(gDev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAlloc.Get(), nullptr,
+                              IID_PPV_ARGS(cmdList.ReleaseAndGetAddressOf())));
 
   CHK(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.ReleaseAndGetAddressOf())));
 
@@ -200,11 +221,8 @@ void proc()
     rootSigDesc.pStaticSamplers = nullptr;
     rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
     CHK(D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &info));
-    gDev->CreateRootSignature(
-      0,
-      sig->GetBufferPointer(),
-      sig->GetBufferSize(),
-      IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf()));
+    gDev->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
+                              IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf()));
     sig->Release();
   }
 
@@ -216,7 +234,8 @@ void proc()
 #if _DEBUG
     flag |= D3DCOMPILE_DEBUG;
 #endif /* _DEBUG */
-    CHK(D3DCompileFromFile(L"sort.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", flag, 0, &cs, &info));
+    CHK(D3DCompileFromFile(L"sort.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", flag, 0, &cs,
+                           &info));
   }
 
   // Create PSO
@@ -236,34 +255,27 @@ void proc()
   CHK(gDev->CreateDescriptorHeap(&desc, IID_PPV_ARGS(descHeapUav.ReleaseAndGetAddressOf())));
 
   // Create buffer on device memory
-  auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-  CHK(gDev->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-    D3D12_HEAP_FLAG_NONE,
-    &resourceDesc,
-    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-    nullptr,
-    IID_PPV_ARGS(bufferDefault.ReleaseAndGetAddressOf())));
+  auto resourceDesc =
+      CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
+                                                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+  CHK(gDev->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                                    D3D12_HEAP_FLAG_NONE, &resourceDesc,
+                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                    IID_PPV_ARGS(bufferDefault.ReleaseAndGetAddressOf())));
   bufferDefault->SetName(L"BufferDefault");
 
   // Create buffer on system memory
   resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES);
-  CHK(gDev->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
-    D3D12_HEAP_FLAG_NONE,
-    &resourceDesc,
-    D3D12_RESOURCE_STATE_COPY_DEST,
-    nullptr,
-    IID_PPV_ARGS(bufferReadback.ReleaseAndGetAddressOf())));
+  CHK(gDev->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+                                    D3D12_HEAP_FLAG_NONE, &resourceDesc,
+                                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                    IID_PPV_ARGS(bufferReadback.ReleaseAndGetAddressOf())));
   bufferReadback->SetName(L"BufferReadback");
 
   ThrowIfFailed(gDev->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-    D3D12_HEAP_FLAG_NONE,
-    &CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES),
-    D3D12_RESOURCE_STATE_GENERIC_READ,
-    nullptr,
-    IID_PPV_ARGS(&bufferUpload)));
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+      &CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+      IID_PPV_ARGS(&bufferUpload)));
   bufferUpload->SetName(L"BufferUpload");
 
   // Setup UAV
@@ -272,75 +284,45 @@ void proc()
   uavDesc.Format = DXGI_FORMAT_UNKNOWN;
   uavDesc.Buffer.NumElements = NSIZE;
   uavDesc.Buffer.StructureByteStride = 4;
-  gDev->CreateUnorderedAccessView(
-    bufferDefault.Get(),
-    nullptr,
-    &uavDesc,
-    descHeapUav->GetCPUDescriptorHandleForHeapStart());
+  gDev->CreateUnorderedAccessView(bufferDefault.Get(), nullptr, &uavDesc,
+                                  descHeapUav->GetCPUDescriptorHandleForHeapStart());
 
- createConstBuf(gDev);
+  createConstBuf(gDev);
 
- SendRandom(cmdList, bufferUpload, bufferDefault);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
 
- // Execute
- CHK(cmdList->Close());
- ID3D12CommandList* cmds = cmdList.Get();
- cmdQueue->ExecuteCommandLists(1, &cmds);
+  SendRandom(cmdList, bufferUpload, bufferDefault);
 
- // Wait until GPU finished
- CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
- CHK(cmdQueue->Signal(fence.Get(), 1));
- auto wait = WaitForSingleObject(fenceEveneHandle, 10000);
- if (wait != WAIT_OBJECT_0)
-   throw runtime_error("Failed WaitForSingleObject().");
+  // Execute
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
 
- // Cleanup command
- ThrowIfFailed(cmdAlloc->Reset());
- ThrowIfFailed(cmdList->Reset(cmdAlloc.Get(), pso.Get()));
- CloseHandle(fenceEveneHandle);
-
-
-// setConstBuf(cmdList, gDev, { 0,3 });
- //setConstBuf(cmdList, gDev, { 1,0 });
- Sort(32, cmdList, rootSignature, pso, descHeapUav,gDev);
- /*
-  // Record commands
-  cmdList->SetComputeRootSignature(rootSignature.Get());
-  cmdList->SetPipelineState(pso.Get());
-  cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-  cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
-  cmdList->Dispatch(1, 1, 1);
-  */
-
-  setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+  // setConstBuf(cmdList, gDev, { 0,3 });
+  // setConstBuf(cmdList, gDev, { 1,0 });
+  Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, gDev, cmdQueue, cmdAlloc, fence);
+  /*
+   // Record commands
+   cmdList->SetComputeRootSignature(rootSignature.Get());
+   cmdList->SetPipelineState(pso.Get());
+   cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+   cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+   cmdList->Dispatch(1, 1, 1);
+   */
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                     D3D12_RESOURCE_STATE_COPY_SOURCE);
   cmdList->CopyResource(bufferReadback.Get(), bufferDefault.Get());
 
   // Execute
-  CHK(cmdList->Close());
-  cmds = cmdList.Get();
-  cmdQueue->ExecuteCommandLists(1, &cmds);
-
-  fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-  // Wait until GPU finished
-  CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
-  CHK(cmdQueue->Signal(fence.Get(), 1));
-  wait = WaitForSingleObject(fenceEveneHandle, 10000);
-  if (wait != WAIT_OBJECT_0)
-    throw runtime_error("Failed WaitForSingleObject().");
-
-  // Cleanup command
-  CHK(cmdAlloc->Reset());
-  CloseHandle(fenceEveneHandle);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
 
   // Get system memory pointer
-  void* data;
+  void *data;
   CHK(bufferReadback->Map(0, nullptr, &data));
 
-  int* dpointer = (int*)data;
+  int *dpointer = (int *)data;
   string str = "";
-  for (size_t i = 0; i < NSIZE+3; i++)
-  {
-    str += to_string(*dpointer)+ ",";
+  for (size_t i = 0; i < NSIZE + 3; i++) {
+    str += to_string(*dpointer) + ",";
     dpointer++;
   }
   bufferReadback->Unmap(0, nullptr);
@@ -349,8 +331,7 @@ void proc()
   cout << str << endl;
 }
 
-int wmain(int argc, wchar_t** argv)
-{
+int wmain(int argc, wchar_t **argv) {
   proc();
   _getwch();
 
