@@ -5,6 +5,7 @@ cbuffer cbCS : register(b0)
 {
   uint  j;
   uint  k;
+  uint  yDimSize;
 };
 
 /*
@@ -20,16 +21,20 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
 */
 
 [numthreads(1, 1, 1)]
-void CSMain(uint3 tid : SV_DispatchThreadID)
+//void CSMain(uint3 tid : SV_DispatchThreadID)
+void CSMain(uint3 tid : SV_GroupID)
 {
 
   //Buf[tid.x] = tid.x + j + k;
   //Buf[tid.x] = Buf[tid.x];
   
   unsigned int i, ixj; // Sorting partners: i and ixj
-  i = tid.x;
+  i = tid.y + (tid.x * yDimSize);
   ixj = i^j;
-  //Buf[i] = 0;
+
+ // Buf[i] = yDimSize;
+ // return;
+
   // The threads with the lowest ids sort the array.
   if ((ixj)>i) {
     if ((i&k) == 0) {

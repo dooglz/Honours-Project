@@ -5,11 +5,28 @@
 //#include <wrl/client.h>
 //#include <clocale>
 //#include <stdexcept>
+#include <chrono>
 
 using namespace std;
 using Microsoft::WRL::ComPtr;
-#define NSIZE 8
+//#define NSIZE 8
+//#define NSIZE 32
+//#define NSIZE 64
+//#define NSIZE 128
+//#define NSIZE 256
+#define NSIZE 1024
+//#define NSIZE 2048
+//#define NSIZE 16384
+//#define NSIZE 32768
+//#define NSIZE 65536
+//#define NSIZE 131072
+//#define NSIZE 1048576
 #define NSIZEBYTES NSIZE * 4
+#define CARDS 2
+#define NSIZEPC NSIZE / CARDS
+#define NSIZEBYTESPC NSIZEBYTES / CARDS
+#define USEMAPPEDUNIFORM true
+
 namespace {
 ComPtr<ID3D12Device> gDev;
 }
@@ -34,6 +51,7 @@ void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *
 struct ConstantBufferCS {
   UINT j;
   UINT k;
+  UINT yDimSize;
 };
 const UINT CBSIZE = sizeof(ConstantBufferCS);
 
@@ -44,7 +62,7 @@ void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Comm
                     ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso,
                     ComPtr<ID3D12Fence> fence) {
   // Execute
-  CHK(cmdList->Close());
+  ThrowIfFailed(cmdList->Close());
   ID3D12CommandList *cmds = cmdList.Get();
   cmdQueue->ExecuteCommandLists(1, &cmds);
 
@@ -63,9 +81,22 @@ void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Comm
   CloseHandle(fenceEveneHandle);
 }
 
+UINT8 *m_pConstantBufferGSData;
 void createConstBuf(ComPtr<ID3D12Device> m_device) {
   const UINT bufferSize = sizeof(ConstantBufferCS);
 
+#if USEMAPPEDUNIFORM
+  ThrowIfFailed(m_device->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+      &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+      IID_PPV_ARGS(&m_constantBufferCS)));
+
+  CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+  ThrowIfFailed(
+      m_constantBufferCS->Map(0, &readRange, reinterpret_cast<void **>(&m_pConstantBufferGSData)));
+  ZeroMemory(m_pConstantBufferGSData, bufferSize);
+
+#else
   ThrowIfFailed(m_device->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
@@ -75,10 +106,17 @@ void createConstBuf(ComPtr<ID3D12Device> m_device) {
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
       IID_PPV_ARGS(&constantBufferCSUpload)));
+#endif
 }
 
 void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device> m_device,
                  ConstantBufferCS cb) {
+
+#if USEMAPPEDUNIFORM
+  UINT8 *destination = m_pConstantBufferGSData;
+  memcpy(destination, &cb, sizeof(ConstantBufferCS));
+
+#else
   // ttransition back to a writable state
   setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(),
                      D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
@@ -93,6 +131,7 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device>
                                       constantBufferCSUpload.Get(), 0, 0, 1, &computeCBData));
   setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                      D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+#endif
 }
 
 void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
@@ -106,36 +145,64 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
   cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
   cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
 
-  UINT j, k, ret;
+  UINT j, k, ret, dx, dy, dz;
+
+  dx = size;
+  dy = 1;
+  dz = 1;
+  if (dx > 65535) {
+    for (dy = 2; dy < 65535; dy += 2) {
+      if ((dx / dy) < 35535) {
+        dx = (dx / dy);
+        break;
+      }
+    }
+    if (dx > 65535) {
+      cout << "too many numbers" << endl;
+      return;
+    }
+    cout << dx << "," << dy << endl;
+  }
   //  Major step
   for (k = 2; k <= size; k <<= 1) {
     //  Minor step
     for (j = k >> 1; j > 0; j = j >> 1) {
-      setConstBuf(cmdList, m_device, {j, k});
+      setConstBuf(cmdList, m_device, {j, k, dy});
 
       ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
       cmdList->SetComputeRootSignature(rootSignature.Get());
       cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-      cmdList->Dispatch(size, 1, 1);
-      // ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+
+      cmdList->SetComputeRootSignature(rootSignature.Get());
+      cmdList->SetPipelineState(pso.Get());
+      cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+      cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+
+      cmdList->Dispatch(dx, dy, 1);
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
     }
+    cout << k << endl;
   }
+  cout << "Sort done" << endl;
 }
 
 void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Resource> bufferUpload,
                 ComPtr<ID3D12Resource> bufferTarget) {
 
-  UINT rndData[NSIZE];
+  UINT *rndData = new UINT[NSIZE];
   cout << endl;
   for (size_t i = 0; i < NSIZE; i++) {
     UINT x = (UINT)0;
     rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
     rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
-    cout << rndData[i] << ",";
+    if (i < 12) {
+      cout << rndData[i] << ",";
+    }
   }
   cout << endl;
   D3D12_SUBRESOURCE_DATA rnd = {};
-  rnd.pData = (&rndData);
+  rnd.pData = (rndData);
   rnd.RowPitch = NSIZEBYTES;
   rnd.SlicePitch = rnd.RowPitch;
 
@@ -145,6 +212,7 @@ void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Resource
       UpdateSubresources<1>(cmdList.Get(), bufferTarget.Get(), bufferUpload.Get(), 0, 0, 1, &rnd));
   setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  delete[] rndData;
 }
 
 void proc() {
@@ -169,8 +237,26 @@ void proc() {
     debug = nullptr;
   }
 #endif /* _DEBUG */
+
+  std::vector<IDXGIAdapter *> vAdapters;
+  {
+
+    UINT i = 0;
+    ComPtr<IDXGIFactory4> pFactory;
+    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&pFactory)));
+    IDXGIAdapter *pAdapter;
+
+    while (pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND) {
+      vAdapters.push_back(pAdapter);
+      DXGI_ADAPTER_DESC adapterDesc;
+      pAdapter->GetDesc(&adapterDesc);
+      wcout << "Adapter " << i << "\t" << adapterDesc.Description << endl;
+      ++i;
+    }
+  }
+
   ID3D12Device *dev;
-  CHK(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
+  CHK(D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
   gDev = dev;
 
   CHK(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -274,31 +360,46 @@ void proc() {
 
   SendRandom(cmdList, bufferUpload, bufferDefault);
   ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  cout << "Numbers copied " << endl;
+
+  auto start = chrono::high_resolution_clock::now();
 
   Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, gDev, cmdQueue, cmdAlloc, fence);
   ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  auto end = chrono::high_resolution_clock::now();
+  cout << chrono::duration_cast<chrono::nanoseconds>(end - start).count() << "ns" << endl;
+  cout << "Numbers Sorted" << endl;
 
   setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                      D3D12_RESOURCE_STATE_COPY_SOURCE);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+
   cmdList->CopyResource(bufferReadback.Get(), bufferDefault.Get());
 
   // Execute
   ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  cout << "Numbers Copied to readback" << endl;
 
   // Get system memory pointer
   void *data;
   CHK(bufferReadback->Map(0, nullptr, &data));
 
+  UINT *rndData = new UINT[NSIZE];
   int *dpointer = (int *)data;
-  string str = "";
-  for (size_t i = 0; i < NSIZE + 3; i++) {
-    str += to_string(*dpointer) + ",";
+  for (size_t i = 0; i < NSIZE; i++) {
+    rndData[i] = *dpointer;
     dpointer++;
   }
   bufferReadback->Unmap(0, nullptr);
+  cout << "readback done" << endl;
+
+  for (size_t i = 0; i < NSIZE && i < 12; i++) {
+    cout << rndData[i] << ",";
+  }
+  cout << endl;
+  delete[] rndData;
 
   // Output
-  cout << str << endl;
 }
 
 int wmain(int argc, wchar_t **argv) {
