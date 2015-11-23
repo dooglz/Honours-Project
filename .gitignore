@@ -64,3 +64,6 @@ build/*/
 build/*
 temp/*/
 temp/*
+src/dx12/x64
+src/dx12/*/x64
+src/dx12/ipch
