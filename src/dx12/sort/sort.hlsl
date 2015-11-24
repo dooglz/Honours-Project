@@ -19,10 +19,10 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
   Buf[tid.x] = gOutputString[tid.x];
 }
 */
-
+/*
 [numthreads(1, 1, 1)]
-//void CSMain(uint3 tid : SV_DispatchThreadID)
-void CSMain(uint3 tid : SV_GroupID)
+void CSMain(uint3 tid : SV_DispatchThreadID)
+//void CSMain(uint3 tid : SV_GroupID)
 {
 
   //Buf[tid.x] = tid.x + j + k;
@@ -57,4 +57,26 @@ void CSMain(uint3 tid : SV_GroupID)
     }
   }
 }
+*/
 
+[numthreads(1, 1, 1)] 
+void CSMain(uint3 tid : SV_GroupID) {
+  uint i = tid.y + (tid.x * yDimSize);
+  uint ix = i*2;
+  if (j) {
+    if (i == 0) {
+      return;
+    }
+    if (Buf[ix - 1] > Buf[ix]) {
+      uint temp = Buf[ix];
+      Buf[ix] = Buf[ix - 1];
+      Buf[ix - 1] = temp;
+    }
+  } else {
+    if (Buf[ix + 1] < Buf[ix]) {
+      uint temp = Buf[ix];
+      Buf[ix] = Buf[ix + 1];
+      Buf[ix + 1] = temp;
+    }
+  }
+}

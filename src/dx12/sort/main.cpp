@@ -14,11 +14,11 @@ using Microsoft::WRL::ComPtr;
 //#define NSIZE 64
 //#define NSIZE 128
 //#define NSIZE 256
-#define NSIZE 1024
+//#define NSIZE 1024
 //#define NSIZE 2048
 //#define NSIZE 16384
 //#define NSIZE 32768
-//#define NSIZE 65536
+#define NSIZE 65536
 //#define NSIZE 131072
 //#define NSIZE 1048576
 #define NSIZEBYTES NSIZE * 4
@@ -34,6 +34,13 @@ ComPtr<ID3D12Device> gDev;
 void CHK(HRESULT hr) {
   if (FAILED(hr))
     throw runtime_error("HRESULT is failed value.");
+}
+
+static const char Spinner(const unsigned int t) {
+  char spinners[] = {
+      '|', '/', '-', '\\',
+  };
+  return (spinners[t % 4]);
 }
 
 void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
@@ -58,6 +65,9 @@ const UINT CBSIZE = sizeof(ConstantBufferCS);
 ComPtr<ID3D12Resource> m_constantBufferCS;
 ComPtr<ID3D12Resource> constantBufferCSUpload;
 
+UINT m_fenceValue = 1;
+ComPtr<ID3D12Fence> m_fence;
+
 void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12CommandQueue> cmdQueue,
                     ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso,
                     ComPtr<ID3D12Fence> fence) {
@@ -66,19 +76,31 @@ void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Comm
   ID3D12CommandList *cmds = cmdList.Get();
   cmdQueue->ExecuteCommandLists(1, &cmds);
 
-  ;
-  HANDLE fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-  // Wait until GPU finished
-  CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
-  CHK(cmdQueue->Signal(fence.Get(), 1));
-  auto wait = WaitForSingleObject(fenceEveneHandle, 10000);
-  if (wait != WAIT_OBJECT_0)
-    throw runtime_error("Failed WaitForSingleObject().");
+  // Tell teh queue to set the Fence to m_fenceValue
+  ThrowIfFailed(cmdQueue->Signal(m_fence.Get(), m_fenceValue));
+
+  // Wait until the previous frame is finished.
+  if (m_fence->GetCompletedValue() < m_fenceValue) {
+    HANDLE m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent));
+    WaitForSingleObject(m_fenceEvent, INFINITE);
+    CloseHandle(m_fenceEvent);
+  }
+  m_fenceValue++;
+
+  /*
+   HANDLE fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+   // Wait until GPU finished
+   CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
+   CHK(cmdQueue->Signal(fence.Get(), 1));
+   auto wait = WaitForSingleObject(fenceEveneHandle, 10000);
+   if (wait != WAIT_OBJECT_0)
+     throw runtime_error("Failed WaitForSingleObject().");
+ */
 
   // Cleanup command
   ThrowIfFailed(cmdAlloc->Reset());
   ThrowIfFailed(cmdList->Reset(cmdAlloc.Get(), pso.Get()));
-  CloseHandle(fenceEveneHandle);
 }
 
 UINT8 *m_pConstantBufferGSData;
@@ -147,7 +169,7 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
 
   UINT j, k, ret, dx, dy, dz;
 
-  dx = size;
+  dx = size / 2;
   dy = 1;
   dz = 1;
   if (dx > 65535) {
@@ -163,27 +185,57 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
     }
     cout << dx << "," << dy << endl;
   }
-  //  Major step
-  for (k = 2; k <= size; k <<= 1) {
-    //  Minor step
-    for (j = k >> 1; j > 0; j = j >> 1) {
-      setConstBuf(cmdList, m_device, {j, k, dy});
 
-      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
-      cmdList->SetComputeRootSignature(rootSignature.Get());
-      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+  int phase;
+  bool lookDirection;
+  for (int phase = 0; phase < (size); ++phase) {
+    lookDirection = (phase % 2 == 0);
 
-      cmdList->SetComputeRootSignature(rootSignature.Get());
-      cmdList->SetPipelineState(pso.Get());
-      cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-      cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+    setConstBuf(cmdList, m_device, {lookDirection, 0, dy});
 
-      cmdList->Dispatch(dx, dy, 1);
-      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+    cmdList->SetComputeRootSignature(rootSignature.Get());
+    cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+
+    cmdList->SetComputeRootSignature(rootSignature.Get());
+    cmdList->SetPipelineState(pso.Get());
+    cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+    cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+    cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+
+    cmdList->Dispatch(dx, dy, 1);
+    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+    if (phase % 512 == 0) {
+      static int aa = 0;
+      cout << "\r" << Spinner(aa++) << "\tPercent Done:\t" << int((float)phase * 100 / (float)size)
+           << "% " << std::flush;
     }
-    cout << k << endl;
   }
+
+  /*
+    //  Major step
+    for (k = 2; k <= size; k <<= 1) {
+      //  Minor step
+      for (j = k >> 1; j > 0; j = j >> 1) {
+        setConstBuf(cmdList, m_device, {j, k, dy});
+
+        ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+        cmdList->SetComputeRootSignature(rootSignature.Get());
+        cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+
+        cmdList->SetComputeRootSignature(rootSignature.Get());
+        cmdList->SetPipelineState(pso.Get());
+        cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+        cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+        cmdList->SetComputeRootDescriptorTable(0,
+    descHeapUav->GetGPUDescriptorHandleForHeapStart());
+
+        cmdList->Dispatch(dx, dy, 1);
+        ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+      }
+      cout << k << endl;
+    }
+    */
   cout << "Sort done" << endl;
 }
 
@@ -307,6 +359,8 @@ void proc() {
                            &info));
   }
 
+  ThrowIfFailed(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+
   // Create PSO
   D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.CS.BytecodeLength = cs->GetBufferSize();
@@ -404,7 +458,7 @@ void proc() {
 
 int wmain(int argc, wchar_t **argv) {
   proc();
-  _getwch();
+//  _getwch();
 
   return 0;
 }
