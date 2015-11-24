@@ -18,9 +18,9 @@ using Microsoft::WRL::ComPtr;
 //#define NSIZE 2048
 //#define NSIZE 16384
 //#define NSIZE 32768
-#define NSIZE 65536
+//#define NSIZE 65536
 //#define NSIZE 131072
-//#define NSIZE 1048576
+#define NSIZE 1048576
 #define NSIZEBYTES NSIZE * 4
 #define CARDS 2
 #define NSIZEPC NSIZE / CARDS
@@ -169,7 +169,7 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
 
   UINT j, k, ret, dx, dy, dz;
 
-  dx = size / 2;
+  dx = size;
   dy = 1;
   dz = 1;
   if (dx > 65535) {
@@ -185,7 +185,7 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
     }
     cout << dx << "," << dy << endl;
   }
-
+/*
   int phase;
   bool lookDirection;
   for (int phase = 0; phase < (size); ++phase) {
@@ -211,8 +211,8 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
            << "% " << std::flush;
     }
   }
+  */
 
-  /*
     //  Major step
     for (k = 2; k <= size; k <<= 1) {
       //  Minor step
@@ -235,7 +235,7 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
       }
       cout << k << endl;
     }
-    */
+   
   cout << "Sort done" << endl;
 }
 
@@ -450,6 +450,8 @@ void proc() {
   for (size_t i = 0; i < NSIZE && i < 12; i++) {
     cout << rndData[i] << ",";
   }
+  CheckArrayOrder(rndData, NSIZE,true);
+
   cout << endl;
   delete[] rndData;
 
@@ -458,7 +460,7 @@ void proc() {
 
 int wmain(int argc, wchar_t **argv) {
   proc();
-//  _getwch();
+  _getwch();
 
   return 0;
 }

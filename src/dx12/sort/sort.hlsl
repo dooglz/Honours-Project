@@ -19,7 +19,7 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
   Buf[tid.x] = gOutputString[tid.x];
 }
 */
-/*
+
 [numthreads(1, 1, 1)]
 void CSMain(uint3 tid : SV_DispatchThreadID)
 //void CSMain(uint3 tid : SV_GroupID)
@@ -57,8 +57,8 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
     }
   }
 }
-*/
 
+/*
 [numthreads(1, 1, 1)] 
 void CSMain(uint3 tid : SV_GroupID) {
   uint i = tid.y + (tid.x * yDimSize);
@@ -80,3 +80,4 @@ void CSMain(uint3 tid : SV_GroupID) {
     }
   }
 }
+*/
