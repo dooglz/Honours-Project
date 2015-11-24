@@ -1,12 +1,5 @@
 #include "stdafx.h"
 
-//#include <LM.h>
-//#include <tchar.h>
-//#include <wrl/client.h>
-//#include <clocale>
-//#include <stdexcept>
-#include <chrono>
-
 using namespace std;
 using Microsoft::WRL::ComPtr;
 //#define NSIZE 8
@@ -28,10 +21,6 @@ using Microsoft::WRL::ComPtr;
 #define NSIZEBYTESPC NSIZEBYTES / CARDS
 #define USEMAPPEDUNIFORM true
 
-namespace {
-ComPtr<ID3D12Device> gDev;
-}
-
 void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
                         D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
   D3D12_RESOURCE_BARRIER desc = {};
@@ -51,18 +40,17 @@ struct ConstantBufferCS {
 };
 const UINT CBSIZE = sizeof(ConstantBufferCS);
 
-ComPtr<ID3D12Resource> m_constantBufferCS;
-ComPtr<ID3D12Resource> constantBufferCSUpload;
+
 
 void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12CommandQueue> cmdQueue,
-                    ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso) {
+                    ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso, ComPtr<ID3D12Device> device) {
   // Execute
   ThrowIfFailed(cmdList->Close());
   ID3D12CommandList *cmds = cmdList.Get();
   cmdQueue->ExecuteCommandLists(1, &cmds);
 
   ComPtr<ID3D12Fence> m_fence;
-  ThrowIfFailed(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+  ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 
   // Tell the queue to set the Fence to 1
   ThrowIfFailed(cmdQueue->Signal(m_fence.Get(), 1));
@@ -79,45 +67,45 @@ void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Comm
   ThrowIfFailed(cmdAlloc->Reset());
   ThrowIfFailed(cmdList->Reset(cmdAlloc.Get(), pso.Get()));
 }
-
-UINT8 *m_pConstantBufferGSData;
-void createConstBuf(ComPtr<ID3D12Device> m_device) {
+struct constantBufStuff {
+  UINT8 *bufferData;
+  ComPtr<ID3D12Resource> buffer;
+  ComPtr<ID3D12Resource> bufferUpload;
+};
+constantBufStuff createConstBuf(ComPtr<ID3D12Device> m_device) {
   const UINT bufferSize = sizeof(ConstantBufferCS);
-
+  constantBufStuff cbf;
 #if USEMAPPEDUNIFORM
   ThrowIfFailed(m_device->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-      IID_PPV_ARGS(&m_constantBufferCS)));
+      IID_PPV_ARGS(&cbf.buffer)));
 
   CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-  ThrowIfFailed(
-      m_constantBufferCS->Map(0, &readRange, reinterpret_cast<void **>(&m_pConstantBufferGSData)));
-  ZeroMemory(m_pConstantBufferGSData, bufferSize);
+  ThrowIfFailed(cbf.buffer->Map(0, &readRange, reinterpret_cast<void **>(&cbf.bufferData)));
+  ZeroMemory(cbf.bufferData, bufferSize);
 
 #else
   ThrowIfFailed(m_device->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-      nullptr, IID_PPV_ARGS(&m_constantBufferCS)));
+      nullptr, IID_PPV_ARGS(&cbf.buffer)));
 
   ThrowIfFailed(m_device->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(bufferSize), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-      IID_PPV_ARGS(&constantBufferCSUpload)));
+      IID_PPV_ARGS(&cbf.bufferUpload)));
 #endif
+return cbf;
 }
 
-void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device> m_device,
-                 ConstantBufferCS cb) {
+void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device> m_device, constantBufStuff cbf, ConstantBufferCS cb) {
 
 #if USEMAPPEDUNIFORM
-  UINT8 *destination = m_pConstantBufferGSData;
-  memcpy(destination, &cb, sizeof(ConstantBufferCS));
-
+  memcpy(cbf.bufferData, &cb, sizeof(ConstantBufferCS));
 #else
   // ttransition back to a writable state
-  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(),
+  setResourceBarrier(cmdList.Get(), cbf.buffer.Get(),
                      D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
                      D3D12_RESOURCE_STATE_COPY_DEST);
 
@@ -126,9 +114,9 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device>
   computeCBData.RowPitch = CBSIZE;
   computeCBData.SlicePitch = computeCBData.RowPitch;
 
-  ThrowIfFailed(UpdateSubresources<1>(cmdList.Get(), m_constantBufferCS.Get(),
-                                      constantBufferCSUpload.Get(), 0, 0, 1, &computeCBData));
-  setResourceBarrier(cmdList.Get(), m_constantBufferCS.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+  ThrowIfFailed(UpdateSubresources<1>(cmdList.Get(), cbf.buffer.Get(),
+    cbf.bufferUpload.Get(), 0, 0, 1, &computeCBData));
+  setResourceBarrier(cmdList.Get(), cbf.buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                      D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 #endif
 }
@@ -136,11 +124,11 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device>
 void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
           ComPtr<ID3D12RootSignature> rootSignature, ComPtr<ID3D12PipelineState> pso,
           ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> m_device,
-          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc) {
+          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12Device> device,constantBufStuff cbf) {
   cmdList->SetComputeRootSignature(rootSignature.Get());
   cmdList->SetPipelineState(pso.Get());
   cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-  cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+  cmdList->SetComputeRootConstantBufferView(1, cbf.buffer->GetGPUVirtualAddress());
   cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
 
   UINT j, k, ret, dx, dy, dz;
@@ -165,16 +153,16 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
   for (k = 2; k <= size; k <<= 1) {
     //  Minor step
     for (j = k >> 1; j > 0; j = j >> 1) {
-      setConstBuf(cmdList, m_device, {j, k, dy});
-      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+      setConstBuf(cmdList, m_device,cbf, {j, k, dy});
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso,device);
 
       cmdList->SetComputeRootSignature(rootSignature.Get());
       cmdList->SetPipelineState(pso.Get());
       cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+      cmdList->SetComputeRootConstantBufferView(1, cbf.buffer->GetGPUVirtualAddress());
       cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
       cmdList->Dispatch(dx, dy, 1);
-      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, device);
     }
   }
 
@@ -210,16 +198,16 @@ void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Resource
 }
 
 void proc() {
-  ComPtr<ID3D12CommandAllocator> cmdAlloc;
-  ComPtr<ID3D12CommandQueue> cmdQueue;
-  ComPtr<ID3D12GraphicsCommandList> cmdList;
-  ComPtr<ID3D12DescriptorHeap> descHeapUav;
-  ComPtr<ID3D12RootSignature> rootSignature;
-  ComPtr<ID3D12PipelineState> pso;
-  ComPtr<ID3D12Resource> bufferDefault;
-  ComPtr<ID3D12Resource> bufferReadback;
-  ComPtr<ID3D12Resource> bufferUpload;
-
+  ComPtr<ID3D12CommandAllocator> cmdAlloc[CARDS];
+  ComPtr<ID3D12CommandQueue> cmdQueue[CARDS];
+  ComPtr<ID3D12GraphicsCommandList> cmdList[CARDS];
+  ComPtr<ID3D12DescriptorHeap> descHeapUav[CARDS];
+  ComPtr<ID3D12RootSignature> rootSignature[CARDS];
+  ComPtr<ID3D12PipelineState> pso[CARDS];
+  ComPtr<ID3D12Resource> bufferDefault[CARDS];
+  ComPtr<ID3D12Resource> bufferReadback[CARDS];
+  ComPtr<ID3D12Resource> bufferUpload[CARDS];
+  ComPtr<ID3D12Device> devices[CARDS];
 #if _DEBUG
   ID3D12Debug *debug = nullptr;
   D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
@@ -247,42 +235,6 @@ void proc() {
     }
   }
 
-  ID3D12Device *dev;
-  ThrowIfFailed(D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
-  gDev = dev;
-
-  ThrowIfFailed(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                             IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())));
-
-  D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-  queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  ThrowIfFailed(
-      gDev->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(cmdQueue.ReleaseAndGetAddressOf())));
-
-  ThrowIfFailed(gDev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAlloc.Get(), nullptr,
-                                        IID_PPV_ARGS(cmdList.ReleaseAndGetAddressOf())));
-  // Create root signature
-  {
-    CD3DX12_DESCRIPTOR_RANGE descRange[1];
-    descRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-
-    CD3DX12_ROOT_PARAMETER rootParam[2];
-    rootParam[0].InitAsDescriptorTable(ARRAYSIZE(descRange), descRange);
-    rootParam[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
-
-    ID3D10Blob *sig, *info;
-    auto rootSigDesc = D3D12_ROOT_SIGNATURE_DESC();
-    rootSigDesc.NumParameters = 2;
-    rootSigDesc.NumStaticSamplers = 0;
-    rootSigDesc.pParameters = rootParam;
-    rootSigDesc.pStaticSamplers = nullptr;
-    rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    ThrowIfFailed(
-        D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &info));
-    gDev->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
-                              IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf()));
-    sig->Release();
-  }
 
   // Create shader
   ID3D10Blob *cs;
@@ -293,74 +245,116 @@ void proc() {
     flag |= D3DCOMPILE_DEBUG;
 #endif /* _DEBUG */
     ThrowIfFailed(D3DCompileFromFile(L"sort.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", flag, 0,
-                                     &cs, &info));
+      &cs, &info));
   }
 
-  // Create PSO
-  D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.CS.BytecodeLength = cs->GetBufferSize();
-  psoDesc.CS.pShaderBytecode = cs->GetBufferPointer();
-  psoDesc.pRootSignature = rootSignature.Get();
-  ThrowIfFailed(
-      gDev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pso.ReleaseAndGetAddressOf())));
-  cs->Release();
+  for (size_t i = 0; i < CARDS; ++i) {
+    ThrowIfFailed(
+        D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&devices[i])));
+    ThrowIfFailed(devices[i]->CreateCommandAllocator(
+        D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(cmdAlloc[i].ReleaseAndGetAddressOf())));
 
-  // Create DescriptorHeap for UAV
-  D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-  desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  desc.NumDescriptors = 10;
-  desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-  ThrowIfFailed(
-      gDev->CreateDescriptorHeap(&desc, IID_PPV_ARGS(descHeapUav.ReleaseAndGetAddressOf())));
+    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+    ThrowIfFailed(devices[i]->CreateCommandQueue(
+        &queueDesc, IID_PPV_ARGS(cmdQueue[i].ReleaseAndGetAddressOf())));
 
-  // Create buffer on device memory
-  auto resourceDesc =
+    ThrowIfFailed(devices[i]->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                cmdAlloc[i].Get(), nullptr,
+                                                IID_PPV_ARGS(cmdList[i].ReleaseAndGetAddressOf())));
+    // Create root signature
+    {
+      CD3DX12_DESCRIPTOR_RANGE descRange[1];
+      descRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+      CD3DX12_ROOT_PARAMETER rootParam[2];
+      rootParam[0].InitAsDescriptorTable(ARRAYSIZE(descRange), descRange);
+      rootParam[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+
+      ID3D10Blob *sig, *info;
+      auto rootSigDesc = D3D12_ROOT_SIGNATURE_DESC();
+      rootSigDesc.NumParameters = 2;
+      rootSigDesc.NumStaticSamplers = 0;
+      rootSigDesc.pParameters = rootParam;
+      rootSigDesc.pStaticSamplers = nullptr;
+      rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+      ThrowIfFailed(
+          D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &info));
+      devices[i]->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
+                                      IID_PPV_ARGS(rootSignature[i].ReleaseAndGetAddressOf()));
+      sig->Release();
+    }
+    // Create PSO
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.CS.BytecodeLength = cs->GetBufferSize();
+    psoDesc.CS.pShaderBytecode = cs->GetBufferPointer();
+    psoDesc.pRootSignature = rootSignature[i].Get();
+    ThrowIfFailed(
+      devices[i]->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pso[i].ReleaseAndGetAddressOf())));
+
+    // Create DescriptorHeap for UAV
+    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    desc.NumDescriptors = 10;
+    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(
+      devices[i]->CreateDescriptorHeap(&desc, IID_PPV_ARGS(descHeapUav[i].ReleaseAndGetAddressOf())));
+
+    // Create buffer on device memory
+    auto resourceDesc =
       CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
-                                                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-  ThrowIfFailed(gDev->CreateCommittedResource(
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    ThrowIfFailed(devices[i]->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &resourceDesc,
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-      IID_PPV_ARGS(bufferDefault.ReleaseAndGetAddressOf())));
-  bufferDefault->SetName(L"BufferDefault");
+      IID_PPV_ARGS(bufferDefault[i].ReleaseAndGetAddressOf())));
+    bufferDefault[i]->SetName(L"BufferDefault");
 
-  // Create buffer on system memory
-  resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES);
-  ThrowIfFailed(gDev->CreateCommittedResource(
+    // Create buffer on system memory
+    resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES);
+    ThrowIfFailed(devices[i]->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE, &resourceDesc,
       D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-      IID_PPV_ARGS(bufferReadback.ReleaseAndGetAddressOf())));
-  bufferReadback->SetName(L"BufferReadback");
+      IID_PPV_ARGS(bufferReadback[i].ReleaseAndGetAddressOf())));
+    bufferReadback[i]->SetName(L"BufferReadback");
 
-  ThrowIfFailed(gDev->CreateCommittedResource(
+    ThrowIfFailed(devices[i]->CreateCommittedResource(
       &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
       &CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-      IID_PPV_ARGS(&bufferUpload)));
-  bufferUpload->SetName(L"BufferUpload");
+      IID_PPV_ARGS(&bufferUpload[i])));
+    bufferUpload[i]->SetName(L"BufferUpload");
 
-  // Setup UAV
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-  uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  uavDesc.Format = DXGI_FORMAT_UNKNOWN;
-  uavDesc.Buffer.NumElements = NSIZE;
-  uavDesc.Buffer.StructureByteStride = 4;
-  gDev->CreateUnorderedAccessView(bufferDefault.Get(), nullptr, &uavDesc,
-                                  descHeapUav->GetCPUDescriptorHandleForHeapStart());
+    // Setup UAV
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.Buffer.NumElements = NSIZE;
+    uavDesc.Buffer.StructureByteStride = 4;
+    devices[i]->CreateUnorderedAccessView(bufferDefault[i].Get(), nullptr, &uavDesc,
+      descHeapUav[i]->GetCPUDescriptorHandleForHeapStart());
 
-  createConstBuf(gDev);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+    createConstBuf(devices[i]);
+    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, devices[i]);
 
-  SendRandom(cmdList, bufferUpload, bufferDefault);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+  }
+
+  cs->Release();
+
+  for (size_t i = 0; i < CARDS; ++i) {
+    SendRandom(cmdList, bufferUpload, bufferDefault);
+    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, devices[i]);
+  }
   cout << "Numbers copied " << endl;
 
-  auto start = chrono::high_resolution_clock::now();
+  for (size_t i = 0; i < CARDS; ++i) {
+    auto start = chrono::high_resolution_clock::now();
 
-  Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, gDev, cmdQueue, cmdAlloc);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
-  auto end = chrono::high_resolution_clock::now();
-  cout << chrono::duration_cast<chrono::nanoseconds>(end - start).count() << "ns" << endl;
-  cout << "Numbers Sorted" << endl;
-
+    Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, devices[i], cmdQueue, cmdAlloc);
+    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+    auto end = chrono::high_resolution_clock::now();
+    cout << chrono::duration_cast<chrono::nanoseconds>(end - start).count() << "ns" << endl;
+    cout << "Numbers Sorted" << endl;
+  }
   setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                      D3D12_RESOURCE_STATE_COPY_SOURCE);
   ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);

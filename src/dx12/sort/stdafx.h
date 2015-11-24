@@ -1,23 +1,13 @@
-//*********************************************************
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-//*********************************************************
-
-// stdafx.h : include file for standard system include files,
-// or project specific include files that are used frequently, but
-// are changed infrequently.
-
 #pragma once
 
 #ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers.
+#define WIN32_LEAN_AND_MEAN
 #endif
+
+#include <string>
+#include <iostream>
+#include <chrono>
+#include <vector>
 
 #include <windows.h>
 
@@ -25,26 +15,20 @@
 #include <d3d12.h>
 #include <D3Dcompiler.h>
 #include <DirectXMath.h>
-
 #include "d3dx12.h"
 
+// Windows Runtime Library.
 #include <wrl.h>
-#include <vector>
-#include <shellapi.h>
 
-#include <string>
-#include <iostream>
+//#include <shellapi.h>
 
-inline void ThrowIfFailed(HRESULT hr)
-{
-  if (FAILED(hr))
-  {
+inline void ThrowIfFailed(HRESULT hr) {
+  if (FAILED(hr)) {
     throw;
   }
 }
 
-template <typename T>
-const bool CheckArrayOrder(const T *a, const size_t size, const bool order) {
+template <typename T> const bool CheckArrayOrder(const T *a, const size_t size, const bool order) {
   if (size < 1) {
     return true;
   }
