@@ -18,9 +18,10 @@ using Microsoft::WRL::ComPtr;
 //#define NSIZE 2048
 //#define NSIZE 16384
 //#define NSIZE 32768
-//#define NSIZE 65536
+#define NSIZE 65536
 //#define NSIZE 131072
-#define NSIZE 1048576
+//#define NSIZE 1048576
+//#define NSIZE 4194304
 #define NSIZEBYTES NSIZE * 4
 #define CARDS 2
 #define NSIZEPC NSIZE / CARDS
@@ -29,18 +30,6 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 ComPtr<ID3D12Device> gDev;
-}
-
-void CHK(HRESULT hr) {
-  if (FAILED(hr))
-    throw runtime_error("HRESULT is failed value.");
-}
-
-static const char Spinner(const unsigned int t) {
-  char spinners[] = {
-      '|', '/', '-', '\\',
-  };
-  return (spinners[t % 4]);
 }
 
 void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
@@ -65,38 +54,26 @@ const UINT CBSIZE = sizeof(ConstantBufferCS);
 ComPtr<ID3D12Resource> m_constantBufferCS;
 ComPtr<ID3D12Resource> constantBufferCSUpload;
 
-UINT m_fenceValue = 1;
-ComPtr<ID3D12Fence> m_fence;
-
 void ExecuteAndWait(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12CommandQueue> cmdQueue,
-                    ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso,
-                    ComPtr<ID3D12Fence> fence) {
+                    ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12PipelineState> pso) {
   // Execute
   ThrowIfFailed(cmdList->Close());
   ID3D12CommandList *cmds = cmdList.Get();
   cmdQueue->ExecuteCommandLists(1, &cmds);
 
-  // Tell teh queue to set the Fence to m_fenceValue
-  ThrowIfFailed(cmdQueue->Signal(m_fence.Get(), m_fenceValue));
+  ComPtr<ID3D12Fence> m_fence;
+  ThrowIfFailed(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 
-  // Wait until the previous frame is finished.
-  if (m_fence->GetCompletedValue() < m_fenceValue) {
+  // Tell the queue to set the Fence to 1
+  ThrowIfFailed(cmdQueue->Signal(m_fence.Get(), 1));
+
+  // Wait until the fence gets set
+  if (m_fence->GetCompletedValue() < 1) {
     HANDLE m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent));
+    ThrowIfFailed(m_fence->SetEventOnCompletion(1, m_fenceEvent));
     WaitForSingleObject(m_fenceEvent, INFINITE);
     CloseHandle(m_fenceEvent);
   }
-  m_fenceValue++;
-
-  /*
-   HANDLE fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-   // Wait until GPU finished
-   CHK(fence->SetEventOnCompletion(1, fenceEveneHandle));
-   CHK(cmdQueue->Signal(fence.Get(), 1));
-   auto wait = WaitForSingleObject(fenceEveneHandle, 10000);
-   if (wait != WAIT_OBJECT_0)
-     throw runtime_error("Failed WaitForSingleObject().");
- */
 
   // Cleanup command
   ThrowIfFailed(cmdAlloc->Reset());
@@ -159,8 +136,7 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device>
 void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
           ComPtr<ID3D12RootSignature> rootSignature, ComPtr<ID3D12PipelineState> pso,
           ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> m_device,
-          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc,
-          ComPtr<ID3D12Fence> fence) {
+          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc) {
   cmdList->SetComputeRootSignature(rootSignature.Get());
   cmdList->SetPipelineState(pso.Get());
   cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
@@ -185,57 +161,23 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
     }
     cout << dx << "," << dy << endl;
   }
-/*
-  int phase;
-  bool lookDirection;
-  for (int phase = 0; phase < (size); ++phase) {
-    lookDirection = (phase % 2 == 0);
+  //  Major step
+  for (k = 2; k <= size; k <<= 1) {
+    //  Minor step
+    for (j = k >> 1; j > 0; j = j >> 1) {
+      setConstBuf(cmdList, m_device, {j, k, dy});
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
 
-    setConstBuf(cmdList, m_device, {lookDirection, 0, dy});
-
-    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
-    cmdList->SetComputeRootSignature(rootSignature.Get());
-    cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-
-    cmdList->SetComputeRootSignature(rootSignature.Get());
-    cmdList->SetPipelineState(pso.Get());
-    cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-    cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-    cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
-
-    cmdList->Dispatch(dx, dy, 1);
-    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
-    if (phase % 512 == 0) {
-      static int aa = 0;
-      cout << "\r" << Spinner(aa++) << "\tPercent Done:\t" << int((float)phase * 100 / (float)size)
-           << "% " << std::flush;
+      cmdList->SetComputeRootSignature(rootSignature.Get());
+      cmdList->SetPipelineState(pso.Get());
+      cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
+      cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
+      cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
+      cmdList->Dispatch(dx, dy, 1);
+      ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
     }
   }
-  */
 
-    //  Major step
-    for (k = 2; k <= size; k <<= 1) {
-      //  Minor step
-      for (j = k >> 1; j > 0; j = j >> 1) {
-        setConstBuf(cmdList, m_device, {j, k, dy});
-
-        ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
-        cmdList->SetComputeRootSignature(rootSignature.Get());
-        cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-
-        cmdList->SetComputeRootSignature(rootSignature.Get());
-        cmdList->SetPipelineState(pso.Get());
-        cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
-        cmdList->SetComputeRootConstantBufferView(1, m_constantBufferCS->GetGPUVirtualAddress());
-        cmdList->SetComputeRootDescriptorTable(0,
-    descHeapUav->GetGPUDescriptorHandleForHeapStart());
-
-        cmdList->Dispatch(dx, dy, 1);
-        ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
-      }
-      cout << k << endl;
-    }
-   
   cout << "Sort done" << endl;
 }
 
@@ -271,8 +213,6 @@ void proc() {
   ComPtr<ID3D12CommandAllocator> cmdAlloc;
   ComPtr<ID3D12CommandQueue> cmdQueue;
   ComPtr<ID3D12GraphicsCommandList> cmdList;
-  ComPtr<ID3D12Fence> fence;
-  HANDLE fenceEveneHandle;
   ComPtr<ID3D12DescriptorHeap> descHeapUav;
   ComPtr<ID3D12RootSignature> rootSignature;
   ComPtr<ID3D12PipelineState> pso;
@@ -308,23 +248,19 @@ void proc() {
   }
 
   ID3D12Device *dev;
-  CHK(D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
+  ThrowIfFailed(D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev)));
   gDev = dev;
 
-  CHK(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                   IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(gDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                             IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())));
 
   D3D12_COMMAND_QUEUE_DESC queueDesc = {};
   queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  CHK(gDev->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(cmdQueue.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(
+      gDev->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(cmdQueue.ReleaseAndGetAddressOf())));
 
-  CHK(gDev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAlloc.Get(), nullptr,
-                              IID_PPV_ARGS(cmdList.ReleaseAndGetAddressOf())));
-
-  CHK(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.ReleaseAndGetAddressOf())));
-
-  fenceEveneHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-
+  ThrowIfFailed(gDev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAlloc.Get(), nullptr,
+                                        IID_PPV_ARGS(cmdList.ReleaseAndGetAddressOf())));
   // Create root signature
   {
     CD3DX12_DESCRIPTOR_RANGE descRange[1];
@@ -341,7 +277,8 @@ void proc() {
     rootSigDesc.pParameters = rootParam;
     rootSigDesc.pStaticSamplers = nullptr;
     rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    CHK(D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &info));
+    ThrowIfFailed(
+        D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &info));
     gDev->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
                               IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf()));
     sig->Release();
@@ -355,18 +292,17 @@ void proc() {
 #if _DEBUG
     flag |= D3DCOMPILE_DEBUG;
 #endif /* _DEBUG */
-    CHK(D3DCompileFromFile(L"sort.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", flag, 0, &cs,
-                           &info));
+    ThrowIfFailed(D3DCompileFromFile(L"sort.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", flag, 0,
+                                     &cs, &info));
   }
-
-  ThrowIfFailed(gDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 
   // Create PSO
   D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.CS.BytecodeLength = cs->GetBufferSize();
   psoDesc.CS.pShaderBytecode = cs->GetBufferPointer();
   psoDesc.pRootSignature = rootSignature.Get();
-  CHK(gDev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pso.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(
+      gDev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pso.ReleaseAndGetAddressOf())));
   cs->Release();
 
   // Create DescriptorHeap for UAV
@@ -374,24 +310,25 @@ void proc() {
   desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   desc.NumDescriptors = 10;
   desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-  CHK(gDev->CreateDescriptorHeap(&desc, IID_PPV_ARGS(descHeapUav.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(
+      gDev->CreateDescriptorHeap(&desc, IID_PPV_ARGS(descHeapUav.ReleaseAndGetAddressOf())));
 
   // Create buffer on device memory
   auto resourceDesc =
       CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
                                                     D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-  CHK(gDev->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-                                    D3D12_HEAP_FLAG_NONE, &resourceDesc,
-                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-                                    IID_PPV_ARGS(bufferDefault.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(gDev->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &resourceDesc,
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+      IID_PPV_ARGS(bufferDefault.ReleaseAndGetAddressOf())));
   bufferDefault->SetName(L"BufferDefault");
 
   // Create buffer on system memory
   resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES);
-  CHK(gDev->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
-                                    D3D12_HEAP_FLAG_NONE, &resourceDesc,
-                                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-                                    IID_PPV_ARGS(bufferReadback.ReleaseAndGetAddressOf())));
+  ThrowIfFailed(gDev->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE, &resourceDesc,
+      D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+      IID_PPV_ARGS(bufferReadback.ReleaseAndGetAddressOf())));
   bufferReadback->SetName(L"BufferReadback");
 
   ThrowIfFailed(gDev->CreateCommittedResource(
@@ -410,33 +347,33 @@ void proc() {
                                   descHeapUav->GetCPUDescriptorHandleForHeapStart());
 
   createConstBuf(gDev);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
 
   SendRandom(cmdList, bufferUpload, bufferDefault);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
   cout << "Numbers copied " << endl;
 
   auto start = chrono::high_resolution_clock::now();
 
-  Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, gDev, cmdQueue, cmdAlloc, fence);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, gDev, cmdQueue, cmdAlloc);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
   auto end = chrono::high_resolution_clock::now();
   cout << chrono::duration_cast<chrono::nanoseconds>(end - start).count() << "ns" << endl;
   cout << "Numbers Sorted" << endl;
 
   setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                      D3D12_RESOURCE_STATE_COPY_SOURCE);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
 
   cmdList->CopyResource(bufferReadback.Get(), bufferDefault.Get());
 
   // Execute
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, fence);
+  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
   cout << "Numbers Copied to readback" << endl;
 
   // Get system memory pointer
   void *data;
-  CHK(bufferReadback->Map(0, nullptr, &data));
+  ThrowIfFailed(bufferReadback->Map(0, nullptr, &data));
 
   UINT *rndData = new UINT[NSIZE];
   int *dpointer = (int *)data;
@@ -450,12 +387,12 @@ void proc() {
   for (size_t i = 0; i < NSIZE && i < 12; i++) {
     cout << rndData[i] << ",";
   }
-  CheckArrayOrder(rndData, NSIZE,true);
-
   cout << endl;
-  delete[] rndData;
 
-  // Output
+  CheckArrayOrder(rndData, NSIZE, true);
+  cout << "Validation done" << endl;
+
+  delete[] rndData;
 }
 
 int wmain(int argc, wchar_t **argv) {
