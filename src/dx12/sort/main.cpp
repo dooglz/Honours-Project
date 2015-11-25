@@ -11,10 +11,10 @@ using Microsoft::WRL::ComPtr;
 //#define NSIZE 2048
 //#define NSIZE 16384
 //#define NSIZE 32768
-#define NSIZE 65536
+//#define NSIZE 65536
 //#define NSIZE 131072
 //#define NSIZE 1048576
-//#define NSIZE 4194304
+#define NSIZE 4194304
 #define NSIZEBYTES NSIZE * 4
 #define CARDS 2
 #define NSIZEPC NSIZE / CARDS
@@ -123,8 +123,9 @@ void setConstBuf(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Device>
 
 void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
           ComPtr<ID3D12RootSignature> rootSignature, ComPtr<ID3D12PipelineState> pso,
-          ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> m_device,
-          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc, ComPtr<ID3D12Device> device,constantBufStuff cbf) {
+          ComPtr<ID3D12DescriptorHeap> descHeapUav, ComPtr<ID3D12Device> device,
+          ComPtr<ID3D12CommandQueue> cmdQueue, ComPtr<ID3D12CommandAllocator> cmdAlloc,
+          constantBufStuff cbf) {
   cmdList->SetComputeRootSignature(rootSignature.Get());
   cmdList->SetPipelineState(pso.Get());
   cmdList->SetDescriptorHeaps(1, descHeapUav.GetAddressOf());
@@ -153,7 +154,7 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
   for (k = 2; k <= size; k <<= 1) {
     //  Minor step
     for (j = k >> 1; j > 0; j = j >> 1) {
-      setConstBuf(cmdList, m_device,cbf, {j, k, dy});
+      setConstBuf(cmdList, device,cbf, {j, k, dy});
       ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso,device);
 
       cmdList->SetComputeRootSignature(rootSignature.Get());
@@ -208,6 +209,7 @@ void proc() {
   ComPtr<ID3D12Resource> bufferReadback[CARDS];
   ComPtr<ID3D12Resource> bufferUpload[CARDS];
   ComPtr<ID3D12Device> devices[CARDS];
+  constantBufStuff cbs[CARDS];
 #if _DEBUG
   ID3D12Debug *debug = nullptr;
   D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
@@ -250,7 +252,7 @@ void proc() {
 
   for (size_t i = 0; i < CARDS; ++i) {
     ThrowIfFailed(
-        D3D12CreateDevice(vAdapters[0], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&devices[i])));
+        D3D12CreateDevice(vAdapters[i], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&devices[i])));
     ThrowIfFailed(devices[i]->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(cmdAlloc[i].ReleaseAndGetAddressOf())));
 
@@ -333,60 +335,64 @@ void proc() {
     devices[i]->CreateUnorderedAccessView(bufferDefault[i].Get(), nullptr, &uavDesc,
       descHeapUav[i]->GetCPUDescriptorHandleForHeapStart());
 
-    createConstBuf(devices[i]);
-    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, devices[i]);
+    cbs[i] = createConstBuf(devices[i]);
+    ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
 
   }
 
   cs->Release();
 
   for (size_t i = 0; i < CARDS; ++i) {
-    SendRandom(cmdList, bufferUpload, bufferDefault);
-    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, devices[i]);
+    SendRandom(cmdList[i], bufferUpload[i], bufferDefault[i]);
+    ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
   }
   cout << "Numbers copied " << endl;
 
   for (size_t i = 0; i < CARDS; ++i) {
     auto start = chrono::high_resolution_clock::now();
-
-    Sort(NSIZE, cmdList, rootSignature, pso, descHeapUav, devices[i], cmdQueue, cmdAlloc);
-    ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+    Sort(NSIZE, cmdList[i], rootSignature[i], pso[i], descHeapUav[i], devices[i], cmdQueue[i], cmdAlloc[i], cbs[i]);
+    ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
     auto end = chrono::high_resolution_clock::now();
     cout << chrono::duration_cast<chrono::nanoseconds>(end - start).count() << "ns" << endl;
-    cout << "Numbers Sorted" << endl;
   }
-  setResourceBarrier(cmdList.Get(), bufferDefault.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                     D3D12_RESOURCE_STATE_COPY_SOURCE);
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
 
-  cmdList->CopyResource(bufferReadback.Get(), bufferDefault.Get());
+  cout << "Numbers Sorted" << endl;
+  for (size_t i = 0; i < CARDS; ++i) {
+    setResourceBarrier(cmdList[i].Get(), bufferDefault[i].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                       D3D12_RESOURCE_STATE_COPY_SOURCE);
+    ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
 
-  // Execute
-  ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso);
+    cmdList[i]->CopyResource(bufferReadback[i].Get(), bufferDefault[i].Get());
+
+    // Execute
+    ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
+  }
   cout << "Numbers Copied to readback" << endl;
 
   // Get system memory pointer
-  void *data;
-  ThrowIfFailed(bufferReadback->Map(0, nullptr, &data));
+  for (size_t i = 0; i < CARDS; ++i) {
+    void *data;
+    ThrowIfFailed(bufferReadback[i]->Map(0, nullptr, &data));
 
-  UINT *rndData = new UINT[NSIZE];
-  int *dpointer = (int *)data;
-  for (size_t i = 0; i < NSIZE; i++) {
-    rndData[i] = *dpointer;
-    dpointer++;
+    UINT *rndData = new UINT[NSIZE];
+    int *dpointer = (int *)data;
+    for (size_t i = 0; i < NSIZE; i++) {
+      rndData[i] = *dpointer;
+      dpointer++;
+    }
+    bufferReadback[i]->Unmap(0, nullptr);
+    cout << "readback done" << endl;
+
+    for (size_t i = 0; i < NSIZE && i < 12; i++) {
+      cout << rndData[i] << ",";
+    }
+    cout << endl;
+
+    CheckArrayOrder(rndData, NSIZE, true);
+    cout << "Validation done" << endl;
+
+    delete[] rndData;
   }
-  bufferReadback->Unmap(0, nullptr);
-  cout << "readback done" << endl;
-
-  for (size_t i = 0; i < NSIZE && i < 12; i++) {
-    cout << rndData[i] << ",";
-  }
-  cout << endl;
-
-  CheckArrayOrder(rndData, NSIZE, true);
-  cout << "Validation done" << endl;
-
-  delete[] rndData;
 }
 
 int wmain(int argc, wchar_t **argv) {
