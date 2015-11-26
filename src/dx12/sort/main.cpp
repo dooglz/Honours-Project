@@ -2,23 +2,6 @@
 
 using namespace std;
 using Microsoft::WRL::ComPtr;
-//#define NSIZE 8
-//#define NSIZE 32
-//#define NSIZE 64
-//#define NSIZE 128
-//#define NSIZE 256
-#define NSIZE 1024
-//#define NSIZE 2048
-//#define NSIZE 16384
-//#define NSIZE 32768
-//#define NSIZE 65536
-//#define NSIZE 131072
-//#define NSIZE 1048576
-//#define NSIZE 4194304
-#define NSIZEBYTES NSIZE * 4
-#define CARDS 2
-#define NSIZEPC NSIZE / CARDS
-#define NSIZEBYTESPC NSIZEBYTES / CARDS
 #define USEMAPPEDUNIFORM true
 
 void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
@@ -142,11 +125,9 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
   cmdList->SetComputeRootConstantBufferView(1, cbf.buffer->GetGPUVirtualAddress());
   cmdList->SetComputeRootDescriptorTable(0, descHeapUav->GetGPUDescriptorHandleForHeapStart());
 
-  UINT j, k, ret, dx, dy, dz;
-
-  dx = size;
-  dy = 1;
-  dz = 1;
+  UINT dx = size;
+  UINT dy = 1;
+  UINT dz = 1;
   if (dx > 65535) {
     for (dy = 2; dy < 65535; dy += 2) {
       if ((dx / dy) < 35535) {
@@ -161,9 +142,9 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
     cout << dx << "," << dy << endl;
   }
   //  Major step
-  for (k = 2; k <= size; k <<= 1) {
+  for (UINT k = 2; k <= size; k <<= 1) {
     //  Minor step
-    for (j = k >> 1; j > 0; j = j >> 1) {
+    for (UINT j = k >> 1; j > 0; j = j >> 1) {
       setConstBuf(cmdList, device, cbf, {j, k, dy});
       ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, device);
 
@@ -176,50 +157,89 @@ void Sort(int size, ComPtr<ID3D12GraphicsCommandList> cmdList,
       ExecuteAndWait(cmdList, cmdQueue, cmdAlloc, pso, device);
     }
   }
-
   cout << "Sort done" << endl;
 }
 
-void SendRandom(ComPtr<ID3D12GraphicsCommandList> cmdList, ComPtr<ID3D12Resource> bufferUpload,
-                ComPtr<ID3D12Resource> bufferTarget) {
+void SortN(int size, const int GPU_N, ComPtr<ID3D12GraphicsCommandList> *cmdList,
+           ComPtr<ID3D12RootSignature> *rootSignature, ComPtr<ID3D12PipelineState> *pso,
+           ComPtr<ID3D12DescriptorHeap> *descHeapUav, ComPtr<ID3D12Device> *device,
+           ComPtr<ID3D12CommandQueue> *cmdQueue, ComPtr<ID3D12CommandAllocator> *cmdAlloc,
+           constantBufStuff *cbf) {
 
-  UINT *rndData = new UINT[NSIZE];
-  cout << endl;
-  for (size_t i = 0; i < NSIZE; i++) {
-    UINT x = (UINT)0;
-    rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
-    rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
-    if (i < 12) {
-      cout << rndData[i] << ",";
+  for (size_t i = 0; i < GPU_N; ++i) {
+    cmdList[i]->SetComputeRootSignature(rootSignature[i].Get());
+    cmdList[i]->SetPipelineState(pso[i].Get());
+    cmdList[i]->SetDescriptorHeaps(1, descHeapUav[i].GetAddressOf());
+    cmdList[i]->SetComputeRootConstantBufferView(1, cbf[i].buffer->GetGPUVirtualAddress());
+    cmdList[i]->SetComputeRootDescriptorTable(0,
+                                              descHeapUav[i]->GetGPUDescriptorHandleForHeapStart());
+  }
+
+  UINT dx = size;
+  UINT dy = 1;
+  UINT dz = 1;
+  if (dx > 65535) {
+    for (dy = 2; dy < 65535; dy += 2) {
+      if ((dx / dy) < 35535) {
+        dx = (dx / dy);
+        break;
+      }
+    }
+    if (dx > 65535) {
+      cout << "too many numbers" << endl;
+      return;
+    }
+    cout << dx << "," << dy << endl;
+  }
+  //  Major step
+  for (UINT k = 2; k <= size; k <<= 1) {
+    //  Minor step
+    for (UINT j = k >> 1; j > 0; j = j >> 1) {
+      for (size_t i = 0; i < GPU_N; ++i) {
+        setConstBuf(cmdList[i], device[i], cbf[i], {j, k, dy});
+        ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], device[i]);
+
+        cmdList[i]->SetComputeRootSignature(rootSignature[i].Get());
+        cmdList[i]->SetPipelineState(pso[i].Get());
+        cmdList[i]->SetDescriptorHeaps(1, descHeapUav[i].GetAddressOf());
+        cmdList[i]->SetComputeRootConstantBufferView(1, cbf[i].buffer->GetGPUVirtualAddress());
+        cmdList[i]->SetComputeRootDescriptorTable(0, descHeapUav[i]->GetGPUDescriptorHandleForHeapStart());
+        cmdList[i]->Dispatch(dx, dy, 1);
+        ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], device[i]);
+      }
     }
   }
-  cout << endl;
-  D3D12_SUBRESOURCE_DATA rnd = {};
-  rnd.pData = (rndData);
-  rnd.RowPitch = NSIZEBYTES;
-  rnd.SlicePitch = rnd.RowPitch;
-
-  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                     D3D12_RESOURCE_STATE_COPY_DEST);
-  ThrowIfFailed(
-      UpdateSubresources<1>(cmdList.Get(), bufferTarget.Get(), bufferUpload.Get(), 0, 0, 1, &rnd));
-  setResourceBarrier(cmdList.Get(), bufferTarget.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-  delete[] rndData;
+  cout << "Sort done" << endl;
 }
 
 void proc() {
-  ComPtr<ID3D12CommandAllocator> cmdAlloc[CARDS];
-  ComPtr<ID3D12CommandQueue> cmdQueue[CARDS];
-  ComPtr<ID3D12GraphicsCommandList> cmdList[CARDS];
-  ComPtr<ID3D12DescriptorHeap> descHeapUav[CARDS];
-  ComPtr<ID3D12RootSignature> rootSignature[CARDS];
-  ComPtr<ID3D12PipelineState> pso[CARDS];
-  ComPtr<ID3D12Resource> bufferDefault[CARDS];
-  ComPtr<ID3D12Resource> bufferReadback[CARDS];
-  ComPtr<ID3D12Resource> bufferUpload[CARDS];
-  ComPtr<ID3D12Device> devices[CARDS];
-  constantBufStuff cbs[CARDS];
+
+  const int GPU_N = 2;
+  UINT maxN = 1 << 7;
+  UINT maxNPC = (UINT)floor(maxN / GPU_N);
+  size_t sz = maxN * sizeof(UINT);
+  size_t szPC = maxNPC * sizeof(UINT);
+  UINT *rndData = new UINT[maxN];
+  for (UINT i = 0; i < maxN; i++) {
+    UINT x = 0;
+    rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
+    rndData[i] = (x << 14) | ((UINT)rand() & 0x3FFF);
+  }
+
+  ComPtr<ID3D12CommandAllocator> cmdAlloc[GPU_N];
+  ComPtr<ID3D12CommandQueue> cmdQueue[GPU_N];
+  ComPtr<ID3D12GraphicsCommandList> cmdList[GPU_N];
+  ComPtr<ID3D12DescriptorHeap> descHeapUav[GPU_N];
+  ComPtr<ID3D12RootSignature> rootSignature[GPU_N];
+  ComPtr<ID3D12PipelineState> pso[GPU_N];
+  ComPtr<ID3D12Resource> bufferDefault[GPU_N];
+  ComPtr<ID3D12Resource> bufferReadback[GPU_N];
+  ComPtr<ID3D12Resource> bufferUpload[GPU_N];
+  ComPtr<ID3D12Device> devices[GPU_N];
+  constantBufStuff cbs[GPU_N];
+  ComPtr<ID3D12Resource> m_crossAdapterResource[GPU_N];
+  ComPtr<ID3D12Heap> shared_heap[GPU_N];
+
 #if _DEBUG
   ID3D12Debug *debug = nullptr;
   D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
@@ -259,7 +279,7 @@ void proc() {
                                      &cs, &info));
   }
 
-  for (size_t i = 0; i < CARDS; ++i) {
+  for (size_t i = 0; i < GPU_N; ++i) {
     ThrowIfFailed(
         D3D12CreateDevice(vAdapters[i], D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&devices[i])));
     ThrowIfFailed(devices[i]->CreateCommandAllocator(
@@ -313,7 +333,7 @@ void proc() {
 
     // Create buffer on device memory
     auto resourceDesc =
-        CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
+        CD3DX12_RESOURCE_DESC::Buffer(szPC, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
                                                       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
     ThrowIfFailed(devices[i]->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &resourceDesc,
@@ -322,7 +342,7 @@ void proc() {
     bufferDefault[i]->SetName(L"BufferDefault");
 
     // Create buffer on system memory
-    resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES);
+    resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(szPC);
     ThrowIfFailed(devices[i]->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), D3D12_HEAP_FLAG_NONE, &resourceDesc,
         D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
@@ -331,7 +351,7 @@ void proc() {
 
     ThrowIfFailed(devices[i]->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(NSIZEBYTES), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+        &CD3DX12_RESOURCE_DESC::Buffer(szPC), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
         IID_PPV_ARGS(&bufferUpload[i])));
     bufferUpload[i]->SetName(L"BufferUpload");
 
@@ -339,7 +359,7 @@ void proc() {
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
     uavDesc.Format = DXGI_FORMAT_UNKNOWN;
-    uavDesc.Buffer.NumElements = NSIZE;
+    uavDesc.Buffer.NumElements = maxNPC;
     uavDesc.Buffer.StructureByteStride = 4;
     devices[i]->CreateUnorderedAccessView(bufferDefault[i].Get(), nullptr, &uavDesc,
                                           descHeapUav[i]->GetCPUDescriptorHandleForHeapStart());
@@ -350,16 +370,14 @@ void proc() {
 
   cs->Release();
 
-#if CARDS > 1
-  ComPtr<ID3D12Resource> m_crossAdapterResource[CARDS];
-  ComPtr<ID3D12Heap> shared_heap[CARDS];
-  // Create cross-adapter shared resources on the primary adapter,
-  //  and open the shared handles on  the secondary adapter.
+if(GPU_N > 1)
   {
-    D3D12_RESOURCE_DESC crossAdapterDesc = CD3DX12_RESOURCE_DESC::Buffer(256);
+    // Create cross-adapter shared resources on the primary adapter,
+    //  and open the shared handles on  the secondary adapter.
+    D3D12_RESOURCE_DESC crossAdapterDesc = CD3DX12_RESOURCE_DESC::Buffer(szPC);
     crossAdapterDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
 
-    CD3DX12_HEAP_DESC heapDesc(256, D3D12_HEAP_TYPE_DEFAULT, 0,
+    CD3DX12_HEAP_DESC heapDesc(szPC, D3D12_HEAP_TYPE_DEFAULT, 0,
                                D3D12_HEAP_FLAG_SHARED | D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER);
 
 
@@ -384,22 +402,82 @@ void proc() {
     ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
     ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
   }
-#endif
-/*
-  for (size_t i = 0; i < CARDS; ++i) {
-    SendRandom(cmdList[i], bufferUpload[i], bufferDefault[i]);
+
+  //upload random data
+  for (size_t i = 0; i < GPU_N; ++i) {
+    D3D12_SUBRESOURCE_DATA rnd = {};
+    rnd.pData = (&rndData[i * maxNPC]);
+    rnd.RowPitch = szPC;
+    rnd.SlicePitch = rnd.RowPitch;
+
+    setResourceBarrier(cmdList[i].Get(), bufferDefault[i].Get(),
+                       D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_DEST);
+    ThrowIfFailed(UpdateSubresources<1>(cmdList[i].Get(), bufferDefault[i].Get(),
+                                        bufferUpload[i].Get(), 0, 0, 1, &rnd));
+    setResourceBarrier(cmdList[i].Get(), bufferDefault[i].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     Execute(cmdList[i], cmdQueue[i]);
   }
 
-  for (size_t i = 0; i < CARDS; ++i) {
+  for (size_t i = 0; i < GPU_N; ++i) {
     Wait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
   }
-  */
 
-  SendRandom(cmdList[0], bufferUpload[0], bufferDefault[0]);
-  ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
-  //let's do some testing 
+  if (GPU_N > 1) {
+    for (size_t swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
+      SortN(maxNPC, GPU_N, cmdList, rootSignature, pso, descHeapUav, devices, cmdQueue, cmdAlloc, cbs);
+      const size_t swapByteSize = swapsize* sizeof(UINT);
+      // now swap
+      // read in the bottom of card 1 to bottom of swapspace
+      setResourceBarrier(cmdList[1].Get(), bufferDefault[1].Get(),
+                         D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
 
+      cmdList[1]->CopyBufferRegion(m_crossAdapterResource[1].Get(), 0, bufferDefault[1].Get(), 0,
+                                   swapByteSize);
+
+      setResourceBarrier(cmdList[1].Get(), bufferDefault[1].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                         D3D12_RESOURCE_STATE_COPY_DEST);
+
+      ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
+
+      // read in the top of card 0 to top of swapspace
+      setResourceBarrier(cmdList[0].Get(), bufferDefault[0].Get(),
+                         D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+      cmdList[0]->CopyBufferRegion(m_crossAdapterResource[0].Get(), swapByteSize,
+                                   bufferDefault[0].Get(), swapByteSize, swapByteSize);
+
+      setResourceBarrier(cmdList[0].Get(), bufferDefault[0].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                         D3D12_RESOURCE_STATE_COPY_DEST);
+
+      //execute
+      ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
+
+
+      //setup swapspace for reading
+      setResourceBarrier(cmdList[0].Get(), m_crossAdapterResource[0].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_COPY_SOURCE);
+      setResourceBarrier(cmdList[1].Get(), m_crossAdapterResource[1].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+      // read in the bottom of swapspace to top of card 0
+      cmdList[0]->CopyBufferRegion(bufferDefault[0].Get(), swapByteSize, m_crossAdapterResource[0].Get(), 0, swapByteSize);
+      // read in the top of swapspace to bottom of card 1
+      cmdList[1]->CopyBufferRegion(bufferDefault[1].Get(), 0, m_crossAdapterResource[1].Get(), swapByteSize, swapByteSize);
+
+      //setup swapspace for writing
+      setResourceBarrier(cmdList[0].Get(), m_crossAdapterResource[0].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+        D3D12_RESOURCE_STATE_COPY_DEST);
+      setResourceBarrier(cmdList[1].Get(), m_crossAdapterResource[1].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+        D3D12_RESOURCE_STATE_COPY_DEST);
+
+      ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
+      ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
+
+    }
+  }
+
+/*
   //copy from def[0] to share [0]
   setResourceBarrier(cmdList[0].Get(), bufferDefault[0].Get(),
                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -426,9 +504,9 @@ void proc() {
   ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
 
   cout << "Numbers copied " << endl;
-
+  */
 /*
-  for (size_t i = 0; i < CARDS; ++i) {
+  for (size_t i = 0; i < GPU_N; ++i) {
     auto start = chrono::high_resolution_clock::now();
     Sort(NSIZE, cmdList[i], rootSignature[i], pso[i], descHeapUav[i], devices[i], cmdQueue[i],
          cmdAlloc[i], cbs[i]);
@@ -438,7 +516,7 @@ void proc() {
   }
   */
   cout << "Numbers Sorted" << endl;
-  for (size_t i = 0; i < CARDS; ++i) {
+  for (size_t i = 0; i < GPU_N; ++i) {
     setResourceBarrier(cmdList[i].Get(), bufferDefault[i].Get(),
                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
@@ -451,29 +529,22 @@ void proc() {
   cout << "Numbers Copied to readback" << endl;
 
   // Get system memory pointer
-  for (size_t i = 0; i < CARDS; ++i) {
+  UINT *outData = new UINT[maxN];
+  for (size_t i = 0; i < GPU_N; ++i) {
     void *data;
     ThrowIfFailed(bufferReadback[i]->Map(0, nullptr, &data));
-
-    UINT *rndData = new UINT[NSIZE];
-    int *dpointer = (int *)data;
-    for (size_t i = 0; i < NSIZE; i++) {
-      rndData[i] = *dpointer;
+    UINT *dpointer = (UINT *)data;
+    for (size_t j = 0; j < maxNPC; j++) {
+      outData[(i * maxNPC) + j] = *dpointer;
       dpointer++;
     }
     bufferReadback[i]->Unmap(0, nullptr);
     cout << "readback done" << endl;
-
-    for (size_t i = 0; i < NSIZE && i < 12; i++) {
-      cout << rndData[i] << ",";
-    }
-    cout << endl;
-
-    //CheckArrayOrder(rndData, NSIZE, true);
-    cout << "Validation done" << endl;
-
-    delete[] rndData;
   }
+
+  CheckArrayOrder(rndData, maxN, true);
+  delete[] rndData;
+  cout << "Validation done" << endl;
 }
 
 int wmain(int argc, wchar_t **argv) {
