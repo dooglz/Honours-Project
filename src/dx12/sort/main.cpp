@@ -1,8 +1,13 @@
 #include "stdafx.h"
+#include "Timer.h"
 
 using namespace std;
 using Microsoft::WRL::ComPtr;
 #define USEMAPPEDUNIFORM true
+
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 
 void setResourceBarrier(ID3D12GraphicsCommandList *commandList, ID3D12Resource *res,
                         D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
@@ -188,7 +193,7 @@ void SortN(int size, const int GPU_N, ComPtr<ID3D12GraphicsCommandList> *cmdList
       cout << "too many numbers" << endl;
       return;
     }
-    cout << dx << "," << dy << endl;
+   // cout << dx << "," << dy << endl;
   }
   //  Major step
   for (UINT k = 2; k <= size; k <<= 1) {
@@ -213,8 +218,9 @@ void SortN(int size, const int GPU_N, ComPtr<ID3D12GraphicsCommandList> *cmdList
 
 void proc() {
 
+
   const int GPU_N = 2;
-  UINT maxN = 1 << 12;
+  UINT maxN = 1 << 18;
   UINT maxNPC = (UINT)floor(maxN / GPU_N);
   size_t sz = maxN * sizeof(UINT);
   size_t szPC = maxNPC * sizeof(UINT);
@@ -238,6 +244,11 @@ void proc() {
   constantBufStuff cbs[GPU_N];
   ComPtr<ID3D12Resource> m_crossAdapterResource[GPU_N];
   ComPtr<ID3D12Heap> shared_heap[GPU_N];
+
+  ResultFile r;
+  r.name = "GpuDX12ParrallelSort2" + to_string(maxN);
+  r.headdings = { "time_writebuffer" };
+  vector<unsigned long long> times;
 
 #if _DEBUG
   ID3D12Debug *debug = nullptr;
@@ -402,6 +413,7 @@ void proc() {
     ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
   }
 
+  Timer time_writebuffer;
   // upload random data
   for (size_t i = 0; i < GPU_N; ++i) {
     D3D12_SUBRESOURCE_DATA rnd = {};
@@ -421,13 +433,25 @@ void proc() {
   for (size_t i = 0; i < GPU_N; ++i) {
     Wait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
   }
+  time_writebuffer.Stop();
+  times.push_back(time_writebuffer.Duration_NS());
 
   if (GPU_N > 1) {
+    unsigned int swapcount = 0;
     for (size_t swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
+      r.headdings.push_back("Sort_" + to_string(swapcount));
+      r.headdings.push_back("Swap_" + to_string(swapsize));
+
+      Timer time_sort;
+
       SortN(maxNPC, GPU_N, cmdList, rootSignature, pso, descHeapUav, devices, cmdQueue, cmdAlloc,
             cbs);
       const size_t swapByteSize = swapsize * sizeof(UINT);
 
+      time_sort.Stop();
+      times.push_back(time_sort.Duration_NS());
+
+      Timer time_swap;
       // now swap
       // read in the bottom of card 1 to bottom of swapspace
       setResourceBarrier(cmdList[1].Get(), bufferDefault[1].Get(),
@@ -475,9 +499,12 @@ void proc() {
 
       ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
       ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
+      time_swap.Stop();
+      times.push_back(time_swap.Duration_NS());
+      ++swapcount;
     }
   }
-
+  Timer time_copyback;
   cout << "Numbers Sorted" << endl;
   for (size_t i = 0; i < GPU_N; ++i) {
     setResourceBarrier(cmdList[i].Get(), bufferDefault[i].Get(),
@@ -504,10 +531,18 @@ void proc() {
     bufferReadback[i]->Unmap(0, nullptr);
     cout << "readback done" << endl;
   }
+  time_copyback.Stop();
+  r.headdings.push_back("Copy Back");
+  times.push_back(time_copyback.Duration_NS());
+
+  r.times.push_back(times);
 
   CheckArrayOrder(rndData, maxN, true);
   delete[] rndData;
   cout << "Validation done" << endl;
+
+  r.CalcAvg();
+  r.PrintToCSV(r.name);
 }
 
 int wmain(int argc, wchar_t **argv) {
