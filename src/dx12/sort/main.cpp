@@ -210,7 +210,10 @@ void SortN(int size, const int GPU_N, ComPtr<ID3D12GraphicsCommandList> *cmdList
         cmdList[i]->SetComputeRootDescriptorTable(
             0, descHeapUav[i]->GetGPUDescriptorHandleForHeapStart());
         cmdList[i]->Dispatch(dx, dy, 1);
-        ExecuteAndWait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], device[i]);
+        Execute(cmdList[i], cmdQueue[i]);
+      }
+      for (size_t i = 0; i < GPU_N; ++i) {
+        Wait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], device[i]);
       }
     }
   }
@@ -463,8 +466,6 @@ void proc() {
       setResourceBarrier(cmdList[1].Get(), bufferDefault[1].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
                          D3D12_RESOURCE_STATE_COPY_DEST);
 
-      ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
-
       // read in the top of card 0 to top of swapspace
       setResourceBarrier(cmdList[0].Get(), bufferDefault[0].Get(),
                          D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -476,7 +477,12 @@ void proc() {
                          D3D12_RESOURCE_STATE_COPY_DEST);
 
       // execute
-      ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
+      for (size_t i = 0; i < GPU_N; ++i) {
+        Execute(cmdList[i], cmdQueue[i]);
+      }
+      for (size_t i = 0; i < GPU_N; ++i) {
+        Wait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
+      }
 
       // setup swapspace for reading
       setResourceBarrier(cmdList[0].Get(), m_crossAdapterResource[0].Get(),
@@ -497,8 +503,13 @@ void proc() {
       setResourceBarrier(cmdList[1].Get(), m_crossAdapterResource[1].Get(),
                          D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 
-      ExecuteAndWait(cmdList[0], cmdQueue[0], cmdAlloc[0], pso[0], devices[0]);
-      ExecuteAndWait(cmdList[1], cmdQueue[1], cmdAlloc[1], pso[1], devices[1]);
+      for (size_t i = 0; i < GPU_N; ++i) {
+        Execute(cmdList[i], cmdQueue[i]);
+      }
+      for (size_t i = 0; i < GPU_N; ++i) {
+        Wait(cmdList[i], cmdQueue[i], cmdAlloc[i], pso[i], devices[i]);
+      }
+
       time_swap.Stop();
       times.push_back(time_swap.Duration_NS());
       ++swapcount;
