@@ -3,6 +3,9 @@
 # find all *cpp, *h in current dir and assign to var SRCS
 file( GLOB SRCS *.cpp *.h *.cl *.cu)
 
+FILE( GLOB all_exps exp_*)
+source_group(experiments FILES ${all_exps})
+
 #add_executable(DeployTest ${SRCS})
 CUDA_ADD_EXECUTABLE(DeployTest ${SRCS})
 

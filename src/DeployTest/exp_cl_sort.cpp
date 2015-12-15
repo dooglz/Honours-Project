@@ -1,4 +1,4 @@
-#include "sort.h"
+#include "exp_cl_sort.h"
 #include "utils.h"
 #include "Timer.h"
 #include <chrono> // std::chrono::seconds
