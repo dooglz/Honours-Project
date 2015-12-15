@@ -173,6 +173,11 @@ const bool SysInfo::get_cpu_hyperThreaded() const {
   return cpuFeatures & (1 << 28) && cpu_cores < cpu_logical;
 }
 
+
+unsigned long long msFloatTimetoNS(const float ms){
+	return static_cast<unsigned long long>(ms * 1000000.0f);
+}
+
 SysInfo::SysInfo()
     : cpu_cores(get_cpu_cores()), cpu_logical(get_cpu_logical()),
       cpu_hardware_concurrency(std::thread::hardware_concurrency()), cpu_name(get_cpu_name()),

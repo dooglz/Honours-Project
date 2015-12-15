@@ -66,3 +66,5 @@ struct ResultFile {
   const void CalcAvg();
   const void PrintToCSV(const string &filename);
 };
+
+unsigned long long msFloatTimetoNS(const float ms);
