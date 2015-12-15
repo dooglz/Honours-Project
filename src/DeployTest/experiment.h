@@ -26,12 +26,9 @@ public:
 protected:
   Experiment(const unsigned int minCu, const unsigned int maxCU, const string &name,
              const string &description);
-  // thread workThread;
-  // virtual void Work(unsigned int num_runs) = 0;
+
   bool should_run;
   bool running;
-  // mutex should_run_mutex; // protects should_run
-  // mutex running_mutex;    // protects running
 
   template <typename T>
   const bool CheckArrayOrder(const T *a, const size_t size, const bool order) {

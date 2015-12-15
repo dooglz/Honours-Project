@@ -55,15 +55,13 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 		checkCudaErrors(cudaStreamCreate(&streams[i]));
 	}
 
-	//enable p2p
-
-
 	//gen data
 	for (size_t i = 0; i < COUNT; ++i) {
 		uint32_t x = 0;
 		host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
 		host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
 	}
+
 	//send data to gpu0
 	checkCudaErrors(cudaSetDevice(0));
 	checkCudaErrors(cudaMemcpyAsync(device_mem[0], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
