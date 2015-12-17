@@ -93,7 +93,9 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 
 		//data currently on gpu 0
 		checkCudaErrors(cudaSetDevice(0));
-		cmprsr->Compress(device_mem[0], 1024);
+		uint32_t* outBuffer;
+		uint32_t outSize;
+		cmprsr->Compress(device_mem[0], COUNT, outBuffer, outSize);
 
 		//copy from 0 to 1
 		checkCudaErrors(cudaEventRecord(start, streams[0]));
@@ -108,6 +110,7 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 		checkCudaErrors(cudaStreamSynchronize(streams[0]));
 		checkCudaErrors(cudaEventElapsedTime(&time_ms, start, end));
 		times.push_back(msFloatTimetoNS(time_ms));
+
 
 		cmprsr->Decompress();
 
