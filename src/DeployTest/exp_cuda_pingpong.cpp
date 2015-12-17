@@ -1,4 +1,6 @@
 #include "exp_cuda_pingpong.h"
+#include "compressor_cuda_bitreducer.h"
+
 #include "utils.h"
 #include "Timer.h"
 #include <chrono>
@@ -20,14 +22,21 @@ static vector<cl::CLDevice> CtxDevices;
 static std::vector<cl_command_queue> cq;
 unsigned int Exp_Cuda_PingPong::GetMinCu() { return 2; }
 unsigned int Exp_Cuda_PingPong::GetMax() { return 2; }
+compressor_cuda_bitreducer *cmprsr;
 
 void Exp_Cuda_PingPong::Init(cl_context &context, std::vector<cl_command_queue> &commandQ,
 	std::vector<cl::CLDevice> &devices, cl::Platform platform) {
 	CtxDevices = devices;
 	ctx = context;
 	cq = commandQ;
+	cmprsr = new compressor_cuda_bitreducer();
+	cmprsr->Init();
 }
-void Exp_Cuda_PingPong::Shutdown() {}
+void Exp_Cuda_PingPong::Shutdown() {
+	cmprsr->Shutdown();
+	delete cmprsr;
+	cmprsr = nullptr;
+}
 
 #define COUNT 1024
 void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> options) {
@@ -82,6 +91,10 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 	while (ShouldRun() && runs < num_runs) {
 		vector<unsigned long long> times;
 
+		//data currently on gpu 0
+		checkCudaErrors(cudaSetDevice(0));
+		cmprsr->Compress(device_mem[0], 1024);
+
 		//copy from 0 to 1
 		checkCudaErrors(cudaEventRecord(start, streams[0]));
 		if (uva) {
@@ -95,6 +108,8 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 		checkCudaErrors(cudaStreamSynchronize(streams[0]));
 		checkCudaErrors(cudaEventElapsedTime(&time_ms, start, end));
 		times.push_back(msFloatTimetoNS(time_ms));
+
+		cmprsr->Decompress();
 
 		//copy back
 		checkCudaErrors(cudaEventRecord(start, streams[0]));

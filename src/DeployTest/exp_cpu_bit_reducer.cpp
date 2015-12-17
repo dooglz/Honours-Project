@@ -30,6 +30,9 @@ void Exp_Cpu_BitReducer::Start(unsigned int num_runs, const std::vector<int> opt
     inData[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
     inData[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
   }
+
+  Timer tm;
+  tm.Start();
   uint8_t *outData = new uint8_t[dataSize + COUNT];
 
   size_t chars = 0;
@@ -91,11 +94,12 @@ void Exp_Cpu_BitReducer::Start(unsigned int num_runs, const std::vector<int> opt
 	i += size;
 	++outIndex;
   }
+  tm.Stop();
 
   const float ratio = (float)writeIndex / (float)dataSize;
   const bool b = CheckArraysEqual(decompressed, inData, COUNT);
 
-  cout << "Validation "  << (b ? "passed": "failed") << " Ratio: " << to_string(ratio) << endl;
+  cout << "Validation " << (b ? "passed" : "failed") << " Ratio: " << ratio << " t: " << tm.Duration_NS() << endl;
 
   delete[] inData;
   delete[] outData;

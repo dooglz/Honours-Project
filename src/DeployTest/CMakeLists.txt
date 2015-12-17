@@ -6,6 +6,12 @@ file( GLOB SRCS *.cpp *.h *.cl *.cu)
 FILE( GLOB all_exps exp_*)
 source_group(experiments FILES ${all_exps})
 
+FILE( GLOB all_comp compressor_*)
+source_group(compressors FILES ${all_comp})
+
+FILE( GLOB all_kernels *.cu *.cl)
+source_group(kernels FILES ${all_kernels})
+
 #add_executable(DeployTest ${SRCS})
 CUDA_ADD_EXECUTABLE(DeployTest ${SRCS})
 
