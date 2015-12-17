@@ -41,10 +41,10 @@ __global__ void seq_compact(uint8_t *intBuf, const uint16_t dataSize, uint32_t* 
 }
 
 
-void Run_BitReduce(const dim3 a, const dim3 b, const uint32_t *input_array, uint32_t *intBuf) {
-	bit_reduce << <a, b >> > (input_array, intBuf);
+void Run_BitReduce(const dim3 a, const dim3 b, const uint32_t *input_array, uint32_t *intBuf, cudaStream_t &stream) {
+	bit_reduce << <a, b,0, stream >> > (input_array, intBuf);
 }
-void Run_seq_compact(const uint32_t *input_array, const uint16_t dataSize, uint32_t* sizeBuf) {
+void Run_seq_compact(const uint32_t *input_array, const uint16_t dataSize, uint32_t* sizeBuf, cudaStream_t &stream) {
 	const dim3 blocks(1, 1);
-	seq_compact << <blocks, blocks >> > ((uint8_t *)input_array, dataSize, sizeBuf);
+	seq_compact << <blocks, blocks, 0, stream >> > ((uint8_t *)input_array, dataSize, sizeBuf);
 }

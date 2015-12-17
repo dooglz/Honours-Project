@@ -17,6 +17,7 @@
 #include "exp_cuda_pingpong.h"
 #include "exp_cuda_sort.h"
 #include "exp_cpu_bit_reducer.h"
+#include "exp_cuda_compression.h"
 using namespace std;
 
 void Usage(ez::ezOptionParser &opt) {
@@ -119,18 +120,19 @@ int main(int argc, const char *argv[]) {
     std::cout << dev->short_name << "\n";
   }
   // create list of tests
-  Experiment *exps[5];
+  Experiment *exps[6];
   exps[0] = new Sort();
   exps[1] = new Sort2();
   exps[2] = new CudaSort();
   exps[3] = new Exp_Cuda_PingPong();
   exps[4] = new Exp_Cpu_BitReducer();
+  exps[5] = new Exp_Cuda_Compression();
   bool run = true;
 
   // main loop
 
   if (batch) {
-    if (selectedExp < 0 || selectedExp > 5) { // todo better validation
+    if (selectedExp < 0 || selectedExp > 6) { // todo better validation
       cout << "Invalid Test" << std::endl;
       return 1;
     }
@@ -142,12 +144,12 @@ int main(int argc, const char *argv[]) {
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
-      for (size_t i = 0; i < 5; i++) {
+      for (size_t i = 0; i < 6; i++) {
         cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t\t" << exps[i]->description
              << std::endl;
       }
       selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                              [](int i) { return (i >= 0 && i <= 5); });
+                                              [](int i) { return (i >= 0 && i <= 6); });
       if (selectedExp == 0) {
         run = false;
         break;
