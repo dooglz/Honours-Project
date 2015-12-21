@@ -37,7 +37,7 @@ void Exp_Cuda_Compression::Shutdown() {
 	cmprsr = nullptr;
 }
 
-#define COUNT 512
+#define COUNT 32768
 void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> options) {
 	std::cout << "\n Cuda_Compress\n";
 	//decode options

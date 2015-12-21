@@ -33,6 +33,10 @@ void Run_BitReduce_count(const dim3 a, const dim3 b, const uint32_t *input_array
 void Run_seq_compact(const uint32_t *input_array, const uint16_t dataSize, uint32_t *sizeBuf,
                      cudaStream_t &stream);
 
+void Run_count_compact(const uint32_t count, const uint32_t blockSize, uint32_t *intBuf, uint32_t *countBuf, cudaStream_t &stream);
+
+void Run_move(uint8_t *buf, uint32_t dest, uint32_t source, uint16_t threads, uint16_t bytesEach, const bool wipe, cudaStream_t &stream);
+
 void compressor_cuda_bitreducer::Compress(const uint32_t *gpuBuffer, const size_t dataSize,
                                           uint32_t *&outBuffer, uint32_t &outSize,
                                           cudaStream_t &stream) {
@@ -76,11 +80,6 @@ void compressor_cuda_bitreducer::Compress(const uint32_t *gpuBuffer, const size_
 #else
   Run_BitReduce_count(blocks, threads, gpuBuffer, outBuffer, countBuffer, stream);
   getLastCudaError("Run_BitReduce_count() execution failed.\n");
-  //pull back to checl
-  cudaDeviceSynchronize();
-  cudaMemcpy(countBufferHost, countBuffer, blocks.x * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-  cudaMemcpy(outBufferHost, outBuffer, int_buf_size, cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
 #endif
 
   if (timing) {
@@ -94,14 +93,50 @@ void compressor_cuda_bitreducer::Compress(const uint32_t *gpuBuffer, const size_
 
 #else
 
+  cudaMemcpyAsync(countBufferHost, countBuffer, blocks.x * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream);
+  //cudaMemcpy(outBufferHost, outBuffer, int_buf_size, cudaMemcpyDeviceToHost);
+  //cudaDeviceSynchronize();
+
+  checkCudaErrors(cudaStreamSynchronize(stream));
+  for (size_t i = 0; i < blocks.x - 1; i++)
+  {
+	  uint32_t count = countBufferHost[0];
+	  for (uint32_t j = 0; j < i; j++)
+	  {
+		  count += countBufferHost[i];
+	  }
+	  count += ((i + 1) * threads.x);
+
+	  const uint32_t writeAddress = count;
+	  const uint32_t readAddress = (i + 1) *(sizeof(uint32_t) * threads.x);
+	  const uint32_t compactedBlockSize = countBufferHost[i + 1] + threads.x;
+	  const uint32_t threadsToRun = cuda::getBlockCount(512, compactedBlockSize);
+	  const uint32_t bytesToCopyPerThread = compactedBlockSize / threadsToRun;
+	  Run_move((uint8_t *)outBuffer, writeAddress, readAddress, threadsToRun, bytesToCopyPerThread, true, stream);
+
+	  //cudaDeviceSynchronize();
+
+	  if (i == (blocks.x - 2)){
+		  outSize = writeAddress + compactedBlockSize;
+	  }
+  }
+  cudaMemcpy(outBufferHost, outBuffer, int_buf_size, cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+
 #endif
 
   if (timing) {
     checkCudaErrors(cudaEventRecord(events[3], stream));
   }
 
+#if COMPACTMODE == 0
   checkCudaErrors(cudaMemcpyAsync(&outSize, sizeBuf, 4, cudaMemcpyDeviceToHost, stream));
   checkCudaErrors(cudaFree(sizeBuf));
+#else
+  checkCudaErrors(cudaFree(countBuffer));
+  checkCudaErrors(cudaFreeHost(countBufferHost));
+  checkCudaErrors(cudaFreeHost(outBufferHost));
+#endif
 
   if (timing) {
     checkCudaErrors(cudaEventRecord(events[4], stream));
