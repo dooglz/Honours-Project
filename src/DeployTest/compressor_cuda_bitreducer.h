@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <cuda_runtime.h>
 #include <vector>
+#include <string>
 
 class compressor_cuda_bitreducer {
 public:

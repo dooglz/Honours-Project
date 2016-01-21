@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <vector>
-#include "Experiment.h"
+#include "experiment.h"
 #include "opencl_utils.h"
 #include <mutex>
 #include <thread>

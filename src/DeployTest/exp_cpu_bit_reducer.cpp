@@ -2,6 +2,7 @@
 
 #include "utils.h"
 #include "Timer.h"
+#include "limits.h"
 #include <chrono>
 #include <thread>
 #include <stdio.h>
@@ -9,6 +10,9 @@
 #include <math.h>
 #include <assert.h>
 #include <string>
+#include <cstring>
+
+using namespace std;
 
 Exp_Cpu_BitReducer::Exp_Cpu_BitReducer()
     : Experiment(1, 4, "Cpu Bit Reducer", "wost compression ever") {}

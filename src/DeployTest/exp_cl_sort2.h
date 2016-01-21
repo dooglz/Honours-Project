@@ -1,5 +1,5 @@
 #pragma once
-#include "openClExp.h"
+#include "opencl_exp.h"
 
 class Sort2 : public OpenCLExperiment {
 public:

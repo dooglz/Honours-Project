@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "CudaExp.h"
+#include "cudaExp.h"
 #include "cuda_utils.h"
 #include <thread>
 #include <fstream>
