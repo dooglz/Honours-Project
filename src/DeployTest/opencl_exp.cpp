@@ -101,6 +101,12 @@ void OpenCLExperiment::Init2(bool batch, int selectedPlat, std::vector<int> sele
     if (sel_devices.size() == 0) {
       sel_devices.push_back(cl::CLdevices[0]);
     }
+    cout << "OpenCL experiment initialised with " << sel_devices.size() << " devices: ";
+    for (auto d : sel_devices) {
+      cout << d.short_name << "(" << d.id << "), ";
+    }
+    cout << endl;
+
     cl::GetContext(sel_devices, context, cmd_queue);
     Init(context, cmd_queue, sel_devices, cl::platforms[selectedPlat]);
   }

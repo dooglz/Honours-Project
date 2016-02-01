@@ -80,11 +80,12 @@ int main(int argc, const char *argv[]) {
   bool batch = false;
   if (opt.isSet("-b")) {
     batch = true;
-    cout << "Batch mode selected";
+    cout << "Batch mode selected" <<endl;
 
     opt.get("-b")->getInt(selectedExp);
     opt.get("-p")->getInt(selectedPlat);
     opt.get("-d")->getInts(selectedDevices);
+    cout << "Experiment: " << selectedExp << " selectedPlat: " << selectedPlat << " selectedDevices: #" << selectedDevices.size() << endl;
 
     if (opt.isSet("-e")) {
       cout << "Experiemnt options ";

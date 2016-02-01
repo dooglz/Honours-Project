@@ -56,6 +56,12 @@ void CudaExperiment::Init2(bool batch, int selectedPlat, std::vector<int> select
       }
     }
 
+    cout << "Cuda experiment initialised with " << sel_devices.size() << " devices: ";
+    for (auto d : sel_devices) {
+      cout << d.short_name << "(" << d.id << "), ";
+    }
+    cout << endl;
+
     Init(sel_devices);
 
   } else {
