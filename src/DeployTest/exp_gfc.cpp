@@ -1,13 +1,15 @@
 #include "exp_gfc.h"
+#include "timer.h"
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
+#include <sstream>
 #include <stdio.h>
 
 #define ull unsigned long long
-#define MAX (32 * 1024 * 1024)
+//#define MAX (32 * 1024 * 1024)
 #define WARPSIZE 32
-#define SIZE 1024
+#define SIZE 4 * 1024 * 1024 // 64mb total
 
 Exp_Cuda_GFC::Exp_Cuda_GFC() : CudaExperiment(1, 2, "GFC float", "good compression") {}
 Exp_Cuda_GFC::~Exp_Cuda_GFC() {}
@@ -33,8 +35,8 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   char *dbuf = nullptr;
   int *cut = nullptr;
   int *off = nullptr;
-  cbuf = new double[MAX];                // uncompressed data
-  dbuf = new char[(MAX + 1) / 2 * 17];   // decompressed data
+  cbuf = new double[SIZE];               // uncompressed data
+  dbuf = new char[(SIZE + 1) / 2 * 17];  // decompressed data
   cut = new int[blocks * warpsperblock]; // chunk boundaries
   off = new int[blocks * warpsperblock]; // offset table
 
@@ -42,6 +44,7 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   int doubles = SIZE;
   for (size_t i = 0; i < SIZE; i++) {
     cbuf[i] = double(i) + (double(rand()) / (double(RAND_MAX)));
+    // cbuf[i] = double(i);
   }
   // calculate required padding for last chunk
   int padding = ((doubles + WARPSIZE - 1) & -WARPSIZE) - doubles;
@@ -109,7 +112,10 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
     fprintf(stderr, "copying of cut to device failed\n");
 
   // CompressionKernel << <blocks, WARPSIZE*warpsperblock >> >();
+  Timer t = Timer();
   RunGfCCompress(blocks, WARPSIZE, 0, dimensionality, cbufl, (unsigned char *)dbufl, cutl, offl);
+  cudaDeviceSynchronize();
+  t.Stop();
   getLastCudaError("GFC Kernel() execution failed.\n");
   fprintf(stderr, "done\n");
 
@@ -118,31 +124,42 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
       cudaMemcpy(off, offl, sizeof(int) * blocks * warpsperblock, cudaMemcpyDeviceToHost))
     fprintf(stderr, "copying of off from device failed\n");
 
+  std::ostringstream my_ss;
+  FILE *pFile;
+  pFile = fopen("myfile.bin", "wb");
+
   // output header
   int num;
   int doublecnt = doubles - padding;
-  num = fwrite(&blocks, 1, 1, stdout);
+  num = fwrite(&blocks, 1, 1, pFile);
   assert(1 == num);
-  num = fwrite(&warpsperblock, 1, 1, stdout);
+  num = fwrite(&warpsperblock, 1, 1, pFile);
   assert(1 == num);
-  num = fwrite(&dimensionality, 1, 1, stdout);
+  num = fwrite(&dimensionality, 1, 1, pFile);
   assert(1 == num);
-  num = fwrite(&doublecnt, 4, 1, stdout);
+  num = fwrite(&doublecnt, 4, 1, pFile);
   assert(1 == num);
+
+  int blockcount = 0;
+  uint32_t totalsize = 7;
+
   // output offset table
-  int blockcount =0;
   for (int i = 0; i < blocks * warpsperblock; i++) {
     int start = 0;
-    if (i > 0)
+    if (i > 0) {
       start = cut[i - 1];
+    }
     off[i] -= ((start + 1) / 2 * 17);
-    // num = fwrite(&off[i], 4, 1, stdout); // chunk's compressed size in bytes
-    // assert(1 == num);
-    // cout << "Compressed size: " << off[i] <<endl;
-    if (off[i] != 0){
+
+    if (off[i] != 0) {
       ++blockcount;
+      totalsize += 4;
+      totalsize += off[i];
     }
 
+    // std::copy(&off[i], (&off[i])+4, std::ostream_iterator<char>(my_ss));
+    // num = fwrite(&off[i], 4, 1, pFile); // chunk's compressed size in bytes
+    // assert(1 == num);
   }
 
   // output compressed data by chunk
@@ -153,16 +170,27 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
     offset = ((start + 1) / 2 * 17);
     // transfer compressed data back to CPU by chunk
     if (cudaSuccess !=
-        cudaMemcpy(dbuf + offset, dbufl + offset, sizeof(char) * off[i], cudaMemcpyDeviceToHost))
-      fprintf(stderr, "copying of dbuf from device failed\n");
-    // num = fwrite(&dbuf[offset], 1, off[i], stdout);
-   // assert(off[i] == num);
-  }
+        cudaMemcpy(dbuf + offset, dbufl + offset, sizeof(char) * off[i], cudaMemcpyDeviceToHost)) {
 
-  delete(cbuf);
-  delete(dbuf);
-  delete(cut);
-  delete(off);
+      fprintf(stderr, "copying of dbuf from device failed\n");
+    }
+    // std::copy(&dbuf[offset], (&dbuf[offset]) + off[i], std::ostream_iterator<char>(my_ss));
+    // num = fwrite(&dbuf[offset], 1, off[i], pFile);
+    // assert(off[i] == num);
+  }
+  // fclose(pFile);
+
+  cout << "Original size: " << readable_fs(SIZE * 8) << endl;
+  cout << "Compressed size: " << " " << readable_fs(totalsize) << endl;
+  cout << "Ratio: " << (float)totalsize / (float)(SIZE * 8) << endl;
+  cout << "Time: " << t.Duration_NS() << endl;
+  cout << "Speed: " << ((double)SIZE / 1024.0 / 1024.0) / ((double)t.Duration_NS() * 0.000000001)
+       << "MB/s" << endl;
+
+  delete (cbuf);
+  delete (dbuf);
+  delete (cut);
+  delete (off);
 
   if (cudaSuccess != cudaFree(cbufl))
     fprintf(stderr, "could not deallocate cbufd\n");

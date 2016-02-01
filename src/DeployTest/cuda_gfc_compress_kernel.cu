@@ -1,7 +1,7 @@
 #define WARPSIZE 32
 
 __global__ void CompressionKernel(int dimensionalityd, unsigned long long *cbufd,
-                                 unsigned char *dbufd, int *cutd, int *offd) {
+                                  unsigned char *dbufd, int *cutd, int *offd) {
   register int offset, code, bcount, tmp, off, beg, end, lane, warp, iindex, lastidx, start, term;
   register unsigned long long diff, prev;
   __shared__ int ibufs[32 * (3 * WARPSIZE / 2)]; // shared space for prefix sum
@@ -86,9 +86,8 @@ __global__ void CompressionKernel(int dimensionalityd, unsigned long long *cbufd
     offd[warp] = off;
 }
 
-void RunGfCCompress(int blocks, int warpsperblock, cudaStream_t stream,
-                    int dimensionalityd, unsigned long long *cbufd, unsigned char *dbufd, int *cutd,
-                    int *offd) {
+void RunGfCCompress(int blocks, int warpsperblock, cudaStream_t stream, int dimensionalityd,
+                    unsigned long long *cbufd, unsigned char *dbufd, int *cutd, int *offd) {
   CompressionKernel<<<blocks, WARPSIZE * warpsperblock>>>(dimensionalityd, cbufd, dbufd, cutd,
                                                           offd);
   // cudaDeviceSynchronize();
