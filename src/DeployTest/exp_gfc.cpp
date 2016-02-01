@@ -9,8 +9,8 @@
 #define ull unsigned long long
 //#define MAX (32 * 1024 * 1024)
 #define WARPSIZE 32
-#define SIZE 4 * 1024 * 1024 // 64mb total
-
+//#define SIZE 4 * 1024 * 1024 // 64mb total
+#define SIZE 512
 Exp_Cuda_GFC::Exp_Cuda_GFC() : CudaExperiment(1, 2, "GFC float", "good compression") {}
 Exp_Cuda_GFC::~Exp_Cuda_GFC() {}
 
@@ -19,6 +19,10 @@ unsigned int Exp_Cuda_GFC::GetMax() { return 2; }
 
 void RunGfCCompress(int blocks, int warpsperblock, cudaStream_t stream, int dimensionalityd,
                     unsigned long long *cbufd, unsigned char *dbufd, int *cutd, int *offd);
+
+void RunGfCDECompress(int blocks, int warpsperblock, cudaStream_t stream, int dimensionalityd,
+                      unsigned char *compressed_data_buffer_in, int *chunk_boundaries_buffer_in,
+                      unsigned long long *uncompressed_data_buffer_out);
 
 void Exp_Cuda_GFC::Shutdown() {}
 
@@ -90,6 +94,7 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   if (cudaSuccess != cudaMalloc((void **)&offl, sizeof(int) * blocks * warpsperblock))
     fprintf(stderr, "could not allocate offd\n");
 
+  cout << sizeof(char)* ((doubles + 1) / 2 * 17) << endl;
   // copy buffer starting addresses (pointers) and values to constant memory
   /*
   if (cudaSuccess != cudaMemcpyToSymbol(dimensionalityd, &dimensionality, sizeof(int)))
@@ -117,7 +122,7 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   cudaDeviceSynchronize();
   t.Stop();
   getLastCudaError("GFC Kernel() execution failed.\n");
-  fprintf(stderr, "done\n");
+  fprintf(stderr, "Compresison done\n");
 
   // transfer offsets back to CPU
   if (cudaSuccess !=
@@ -181,11 +186,33 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   // fclose(pFile);
 
   cout << "Original size: " << readable_fs(SIZE * 8) << endl;
-  cout << "Compressed size: " << " " << readable_fs(totalsize) << endl;
+  cout << "Compressed size: "
+       << " " << readable_fs(totalsize) << endl;
   cout << "Ratio: " << (float)totalsize / (float)(SIZE * 8) << endl;
   cout << "Time: " << t.Duration_NS() << endl;
   cout << "Speed: " << ((double)SIZE / 1024.0 / 1024.0) / ((double)t.Duration_NS() * 0.000000001)
        << "MB/s" << endl;
+
+  // DECOMPRESS
+
+  unsigned long long *uncompressed_data_buffer_out;
+  if (cudaSuccess != cudaMalloc((void **)&uncompressed_data_buffer_out, sizeof(ull) * doubles))
+    fprintf(stderr, "could not allocate cbufd\n");
+  cudaDeviceSynchronize();
+  t.Start();
+  RunGfCDECompress(blocks, WARPSIZE, 0, dimensionality,
+                   (unsigned char *)dbufl,      // compressed_data_buffer_in
+                   cutl,                        // chunk_boundaries_buffer_in
+                   uncompressed_data_buffer_out // uncompressed_data_buffer_out
+                   );
+  cudaDeviceSynchronize();
+  t.Stop();
+  getLastCudaError("GFC Decompression Kernel() execution failed.\n");
+  fprintf(stderr, "Decompression done\n");
+
+  cout << "Time: " << t.Duration_NS() << endl;
+  cout << "Speed: " << ((double)SIZE / 1024.0 / 1024.0) / ((double)t.Duration_NS() * 0.000000001)
+    << "MB/s" << endl;
 
   delete (cbuf);
   delete (dbuf);
