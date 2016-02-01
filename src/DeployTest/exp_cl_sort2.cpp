@@ -10,7 +10,7 @@
 
 #define DEFAULTPOWER 12
 #define VERIFY 0
-Sort2::Sort2() : OpenCLExperiment(1, 4, "Sort2", "Sorts2 Things") {}
+Sort2::Sort2() : OpenCLExperiment(1, 4, "Sort2", "Sorts Things, Fast Bitonic") {}
 
 Sort2::~Sort2() {}
 

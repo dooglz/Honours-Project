@@ -9,7 +9,7 @@
 #include <assert.h>
 #define DEFAULTPOWER 12
 #define VERIFY true
-Sort::Sort() : OpenCLExperiment(1, 4, "Sort", "Sorts Things") {}
+Sort::Sort() : OpenCLExperiment(1, 4, "Sort", "Sorts Things, Intel Bitonic") {}
 
 Sort::~Sort() {}
 uint32_t cmxount = 0;

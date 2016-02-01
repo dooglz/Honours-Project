@@ -91,7 +91,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   // malloc
   int32_t *gpu1SwapBuffer;
   if (optmode == 1 || optmode == 2) {
-    checkCudaErrors(cudaSetDevice(1));
+   // checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
     checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, (maxNPC / 2) * sizeof(uint32_t)));
     if (optmode == 2) {
       std::cout << "attemptiung UVA p2p" << endl;

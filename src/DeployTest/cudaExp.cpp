@@ -56,15 +56,49 @@ void CudaExperiment::Init2(bool batch, int selectedPlat, std::vector<int> select
       }
     }
 
+    for (size_t i = 0; i < 5; i++) {
+      if (selected[i] == true) {
+        sel_devices.push_back(cuda::CudaDevices[i]);
+      }
+    }
+    delete[] selected;
+
+    if (selectedDev == 1) {
+      if (num_selected == 0) {
+        // use defaults
+        Init(sel_devices);
+
+        exit;
+      }
+      else {
+        // load selected
+        cout << "Cuda experiment initialised with " << sel_devices.size() << " devices: ";
+        for (auto d : sel_devices) {
+          cout << d.short_name << "(" << d.id << "), ";
+        }
+        cout << endl;
+
+        Init(sel_devices);
+      }
+    }
+    else {
+      // Cancelled out
+      return;
+    }
+  } else {
+    // batch init
+    std::vector<cuda::CudaDevice> sel_devices;
+    for (auto d : selectedDevices) {
+      sel_devices.push_back(cuda::CudaDevices[d]);
+    }
+    if (sel_devices.size() == 0) {
+      sel_devices.push_back(cuda::CudaDevices[0]);
+    }
     cout << "Cuda experiment initialised with " << sel_devices.size() << " devices: ";
     for (auto d : sel_devices) {
       cout << d.short_name << "(" << d.id << "), ";
     }
     cout << endl;
-
     Init(sel_devices);
-
-  } else {
-    // batch init
   }
 };
