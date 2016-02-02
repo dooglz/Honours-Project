@@ -156,7 +156,7 @@ void Sort2::Start(unsigned int num_runs, const std::vector<int> options) {
     // nThreads[0] = (maxN / (2 * 4))/2;
     // nThreads[0] = maxNPC;
     nThreads[0] = maxNPC / (2 * 4);
-    cl_event e[2]; // todo dynamic
+   // cl_event e[2]; // todo dynamic
     unsigned int swapcount = 0;
     if (cq.size() == 2) {
       for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {

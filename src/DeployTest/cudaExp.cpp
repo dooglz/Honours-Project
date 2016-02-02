@@ -68,7 +68,7 @@ void CudaExperiment::Init2(bool batch, int selectedPlat, std::vector<int> select
         // use defaults
         Init(sel_devices);
 
-        exit;
+        exit(1);
       }
       else {
         // load selected

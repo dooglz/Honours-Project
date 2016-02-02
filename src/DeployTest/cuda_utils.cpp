@@ -291,6 +291,32 @@ const bool enableUVA(const int gpu0, const int gpu1) {
   return true;
 }
 
+const bool enableP2P(const int gpu0, const int gpu1) {
+  int gpus[2] = { gpu0, gpu1 };
+  cudaDeviceProp p[2];
+  for (auto i = 0; i < 2; i++) {
+    checkCudaErrors(cudaGetDeviceProperties(&p[i], gpus[i]));
+    if (p[i].major < 2) {
+      cerr << "Only boards based on Fermi can support P2P!" << endl;
+      return false;
+    }
+    int can_access_peer;
+    checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer, gpus[i], gpus[!i]));
+    if (!can_access_peer) {
+      cerr << i << " Can't access peer " << !i << endl;
+      return false;
+    }
+  }
+  // looks good, let's enable
+  // Enable peer access
+  printf("Enabling peer access between GPU%d and GPU%d...\n", gpus[0], gpus[1]);
+  checkCudaErrors(cudaSetDevice(gpus[0]));
+  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[1], 0));
+  checkCudaErrors(cudaSetDevice(gpus[1]));
+  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[0], 0));
+  return true;
+}
+
 const char *_cudaGetErrorEnum(cudaError_t error) {
   switch (error) {
   case cudaSuccess:

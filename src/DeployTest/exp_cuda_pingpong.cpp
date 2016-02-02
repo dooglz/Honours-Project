@@ -12,6 +12,8 @@
 //#include <cuda.h>
 #include <cuda_runtime.h>
 
+#define DEFAULTPOWER 18
+
 Exp_Cuda_PingPong::Exp_Cuda_PingPong()
     : CudaExperiment(1, 4, "CudaPingPong", "Plays tennis with data") {}
 Exp_Cuda_PingPong::~Exp_Cuda_PingPong() {}
@@ -23,22 +25,45 @@ unsigned int Exp_Cuda_PingPong::GetMax() { return 2; }
 void Exp_Cuda_PingPong::Init(std::vector<cuda::CudaDevice> &devices) { CtxDevices = devices; }
 void Exp_Cuda_PingPong::Shutdown() {}
 
-#define COUNT 1024
 void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> options) {
-  if (CtxDevices.size() < GetMinCu() || CtxDevices.size() > GetMax()){
+  if (CtxDevices.size() < GetMinCu() || CtxDevices.size() > GetMax()) {
     std::cout << "\n invalid number of devices\n";
     return;
   }
   std::cout << "\n CudaPingPong\n";
   // decode options
-  bool uva = false;
-  if (0) {
-    uva = cuda::enableUVA(0, 1);
-    if (uva) {
-      std::cout << "Using UVA P2P" << endl;
+  uint16_t power;
+  if (options.size() > 0) {
+    power = options[0];
+  } else {
+    cout << "Power of numbers to sort?: (0 for default)" << std::endl;
+    power = promptValidated<int, int>("Power: ", [](int i) { return (i >= 0 && i <= 256); });
+  }
+  if (power == 0) {
+    power = DEFAULTPOWER;
+  }
+  int optmode = 0;
+  if (options.size() > 1) {
+    optmode = options[1];
+  } else {
+    cout << "Data transfer mode (0 HostRam, 1 peer, 2 UVA)" << std::endl;
+    optmode = promptValidated<int, int>("optmode: ", [](int i) { return (i >= 0 && i <= 2); });
+  }
+  if (optmode == 1){
+    if (!cuda::enableP2P(0, 1)) {
+      cerr << "Couldn't enable P2P, returning" << std::endl;
+      return;
     }
   }
-  const size_t dataSize = (COUNT) * sizeof(uint32_t);
+  else  if (optmode == 2){
+    cerr << "Couldn't enable UVA, returning" << std::endl;
+    if (!cuda::enableUVA(0, 1)) {
+      return;
+    }
+  }
+
+  const uint32_t count = 1 << power;
+  const size_t dataSize = (count) * sizeof(uint32_t);
 
   uint32_t *device_mem[2];
   cudaStream_t streams[2];
@@ -47,20 +72,20 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   // malloc
   checkCudaErrors(cudaMallocHost((void **)&host_mem, dataSize));
   for (size_t i = 0; i < 2; i++) {
-    checkCudaErrors(cudaSetDevice(i));
+    checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
     checkCudaErrors(cudaMalloc(&device_mem[i], dataSize));
     checkCudaErrors(cudaStreamCreate(&streams[i]));
   }
 
   // gen data
-  for (size_t i = 0; i < COUNT; ++i) {
+  for (size_t i = 0; i < count; ++i) {
     uint32_t x = 0;
     host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
     host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
   }
 
   // send data to gpu0
-  checkCudaErrors(cudaSetDevice(0));
+  checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
   checkCudaErrors(
       cudaMemcpyAsync(device_mem[0], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
   checkCudaErrors(cudaDeviceSynchronize());
@@ -74,7 +99,7 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   cudaEventCreate(&end);
   ResultFile r;
   float time_ms;
-  r.name = "Cuda_PingPong" + to_string(COUNT);
+  r.name = "Cuda_PingPong" + to_string(count);
   r.headdings = {"A to B", "B to A"};
 
   while (ShouldRun() && runs < num_runs) {
@@ -82,12 +107,17 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 
     // copy from 0 to 1
     checkCudaErrors(cudaEventRecord(start, streams[0]));
-    if (uva) {
-      checkCudaErrors(
-          cudaMemcpyAsync(device_mem[1], device_mem[0], dataSize, cudaMemcpyDefault, streams[0]));
-    } else {
-      checkCudaErrors(
-          cudaMemcpyPeerAsync(device_mem[1], 1, device_mem[0], 0, dataSize, streams[0]));
+    switch (optmode) {
+    case 0: // copy to host
+      checkCudaErrors(cudaMemcpyAsync(host_mem, device_mem[0], dataSize, cudaMemcpyDeviceToHost, streams[0]));
+      checkCudaErrors(cudaMemcpyAsync(device_mem[1], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
+      break;
+    case 1: // use peercopy
+      checkCudaErrors(cudaMemcpyPeer(device_mem[1], 1, device_mem[0], 0, dataSize));
+      break;
+    case 2: // use UVA
+      checkCudaErrors(cudaMemcpyAsync(device_mem[1], device_mem[0], dataSize, cudaMemcpyDefault, streams[0]));
+      break;
     }
     checkCudaErrors(cudaEventRecord(end, streams[0]));
 
@@ -97,21 +127,24 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 
     // copy back
     checkCudaErrors(cudaEventRecord(start, streams[0]));
-    if (uva) {
-      checkCudaErrors(
-          cudaMemcpyAsync(device_mem[1], device_mem[0], dataSize, cudaMemcpyDefault, streams[0]));
-    } else {
-      checkCudaErrors(
-          cudaMemcpyPeerAsync(device_mem[1], 1, device_mem[0], 0, dataSize, streams[0]));
+    switch (optmode) {
+    case 0: // copy to host
+      checkCudaErrors(cudaMemcpyAsync(host_mem, device_mem[1], dataSize, cudaMemcpyDeviceToHost, streams[0]));
+      checkCudaErrors(cudaMemcpyAsync(device_mem[0], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
+      break;
+    case 1: // use peercopy
+      checkCudaErrors(cudaMemcpyPeer(device_mem[0], 0, device_mem[1], 1, dataSize));
+      break;
+    case 2: // use UVA
+      checkCudaErrors(cudaMemcpyAsync(device_mem[0], device_mem[1], dataSize, cudaMemcpyDefault, streams[0]));
+      break;
     }
     checkCudaErrors(cudaEventRecord(end, streams[0]));
 
-    checkCudaErrors(cudaDeviceSynchronize());
-
     checkCudaErrors(cudaStreamSynchronize(streams[0]));
     checkCudaErrors(cudaEventElapsedTime(&time_ms, start, end));
-
     times.push_back(msFloatTimetoNS(time_ms));
+
     r.times.push_back(times);
     ++runs;
   }
@@ -119,9 +152,9 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   cudaEventDestroy(start);
   cudaEventDestroy(end);
 
-  checkCudaErrors(cudaSetDevice(0));
+  checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
   checkCudaErrors(cudaFree(device_mem[0]));
-  checkCudaErrors(cudaSetDevice(1));
+  checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
   checkCudaErrors(cudaFree(device_mem[1]));
   checkCudaErrors(cudaFreeHost(host_mem));
   checkCudaErrors(cudaStreamDestroy(streams[0]));

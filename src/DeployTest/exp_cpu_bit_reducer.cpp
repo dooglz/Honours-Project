@@ -24,7 +24,7 @@ void Exp_Cpu_BitReducer::Shutdown() {}
 #define COUNT 1024
 void Exp_Cpu_BitReducer::Start(unsigned int num_runs, const std::vector<int> options) {
   std::cout << "\n Cpu Bit Reducer\n";
-  srand(time(NULL));
+  srand((uint32_t)time(NULL));
 
   // create input data
   uint32_t *inData = new uint32_t[COUNT];

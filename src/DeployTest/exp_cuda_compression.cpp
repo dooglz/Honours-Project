@@ -76,7 +76,6 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 	should_run = true;
 
 	ResultFile r;
-	float time_ms;
 	r.name = "Cuda_Compress_" + to_string(COUNT);
 	r.headdings = cmprsr->TimingHeadders();
 

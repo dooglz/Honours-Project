@@ -19,7 +19,6 @@ __global__ void bit_reduce(const uint32_t *input_array, uint32_t *intBuf) {
 }
 
 __global__ void seq_compact(uint8_t *intBuf, const uint16_t dataSize, uint32_t *sizeBuf) {
-  uint16_t readIndex = 0;
   uint16_t writeIndex = 0;
   for (uint16_t i = 0; i < dataSize; ++i) {
     const uint16_t readIndex = i * 4;

@@ -58,12 +58,12 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   if (options.size() > 1) {
     optmode = options[1];
   } else {
-    cout << "dAta transfer mode (0 dumb, 1 peer, 2 UVA)" << std::endl;
+    cout << "Data transfer mode (0 dumb, 1 peer, 2 UVA)" << std::endl;
     optmode = promptValidated<int, int>("optmode: ", [](int i) { return (i >= 0 && i <= 2); });
   }
 
   const int GPU_N = 2;
-  uint32_t maxN = 1 << DEFAULTPOWER;
+  uint32_t maxN = 1 << power;
   uint32_t maxNPC = (uint32_t)floor(maxN / GPU_N);
   size_t sz = maxN * sizeof(uint32_t);
   size_t szPC = maxNPC * sizeof(uint32_t);
@@ -91,7 +91,13 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   if (optmode == 1 || optmode == 2) {
     checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
     checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, (maxNPC / 2) * sizeof(uint32_t)));
-    if (optmode == 2) {
+    if (optmode == 1){
+      std::cout << "attemptiung p2p" << endl;
+      if (!cuda::enableP2P(0, 1)) {
+        return;
+      }
+    }
+    else if(optmode == 2) {
       std::cout << "attemptiung UVA p2p" << endl;
       if (GPU_N != 2) {
         cerr << "Need 2 gpus!" << endl;
@@ -217,7 +223,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         uint32_t *tmpData = new uint32_t[swapsize];
         // read back all data
         for (auto i = 0; i < GPU_N; i++) {
-          checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
+          checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
           checkCudaErrors(cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC,
                                           cudaMemcpyDeviceToHost, streams[i]));
         }
