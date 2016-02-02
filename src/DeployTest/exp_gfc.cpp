@@ -13,7 +13,7 @@
 #define SIZE 512
 Exp_Cuda_GFC::Exp_Cuda_GFC() : CudaExperiment(1, 2, "GFC float", "good compression") {}
 Exp_Cuda_GFC::~Exp_Cuda_GFC() {}
-
+static vector<cuda::CudaDevice> CtxDevices;
 unsigned int Exp_Cuda_GFC::GetMinCu() { return 2; }
 unsigned int Exp_Cuda_GFC::GetMax() { return 2; }
 
@@ -26,9 +26,13 @@ void RunGfCDECompress(int blocks, int warpsperblock, cudaStream_t stream, int di
 
 void Exp_Cuda_GFC::Shutdown() {}
 
-void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) {}
+void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) { CtxDevices = devices; }
 
-void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
+void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) {
+  if (CtxDevices.size() < GetMinCu() || CtxDevices.size() > GetMax()){
+    std::cout << "\n invalid number of devices\n";
+    return;
+  }
   cudaDeviceReset();
 
   int blocks = 28;
@@ -74,7 +78,8 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
     for (int i = doubles - padding; i < doubles; i++) {
       cbuf[i] = 0;
     }
-  } else {
+  }
+  else {
     for (int i = doubles - padding; i < doubles; i++) {
       cbuf[i] = cbuf[(i & -WARPSIZE) - (dimensionality - i % dimensionality)];
     }
@@ -85,35 +90,35 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
   char *dbufl; // compressed data
   int *cutl;   // chunk boundaries
   int *offl;   // offset table
-  if (cudaSuccess != cudaMalloc((void **)&cbufl, sizeof(ull) * doubles))
+  if (cudaSuccess != cudaMalloc((void **)&cbufl, sizeof(ull)* doubles))
     fprintf(stderr, "could not allocate cbufd\n");
-  if (cudaSuccess != cudaMalloc((void **)&dbufl, sizeof(char) * ((doubles + 1) / 2 * 17)))
+  if (cudaSuccess != cudaMalloc((void **)&dbufl, sizeof(char)* ((doubles + 1) / 2 * 17)))
     fprintf(stderr, "could not allocate dbufd\n");
-  if (cudaSuccess != cudaMalloc((void **)&cutl, sizeof(int) * blocks * warpsperblock))
+  if (cudaSuccess != cudaMalloc((void **)&cutl, sizeof(int)* blocks * warpsperblock))
     fprintf(stderr, "could not allocate cutd\n");
-  if (cudaSuccess != cudaMalloc((void **)&offl, sizeof(int) * blocks * warpsperblock))
+  if (cudaSuccess != cudaMalloc((void **)&offl, sizeof(int)* blocks * warpsperblock))
     fprintf(stderr, "could not allocate offd\n");
 
   cout << sizeof(char)* ((doubles + 1) / 2 * 17) << endl;
   // copy buffer starting addresses (pointers) and values to constant memory
   /*
   if (cudaSuccess != cudaMemcpyToSymbol(dimensionalityd, &dimensionality, sizeof(int)))
-    fprintf(stderr, "copying of dimensionality to device failed\n");
+  fprintf(stderr, "copying of dimensionality to device failed\n");
   if (cudaSuccess != cudaMemcpyToSymbol(cbufd, &cbufl, sizeof(void *)))
-    fprintf(stderr, "copying of cbufl to device failed\n");
+  fprintf(stderr, "copying of cbufl to device failed\n");
   if (cudaSuccess != cudaMemcpyToSymbol(dbufd, &dbufl, sizeof(void *)))
-    fprintf(stderr, "copying of dbufl to device failed\n");
+  fprintf(stderr, "copying of dbufl to device failed\n");
   if (cudaSuccess != cudaMemcpyToSymbol(cutd, &cutl, sizeof(void *)))
-    fprintf(stderr, "copying of cutl to device failed\n");
+  fprintf(stderr, "copying of cutl to device failed\n");
   if (cudaSuccess != cudaMemcpyToSymbol(offd, &offl, sizeof(void *)))
-    fprintf(stderr, "copying of offl to device failed\n");
-    */
+  fprintf(stderr, "copying of offl to device failed\n");
+  */
 
   // copy CPU buffer contents to GPU
-  if (cudaSuccess != cudaMemcpy(cbufl, cbuf, sizeof(ull) * doubles, cudaMemcpyHostToDevice))
+  if (cudaSuccess != cudaMemcpy(cbufl, cbuf, sizeof(ull)* doubles, cudaMemcpyHostToDevice))
     fprintf(stderr, "copying of cbuf to device failed\n");
   if (cudaSuccess !=
-      cudaMemcpy(cutl, cut, sizeof(int) * blocks * warpsperblock, cudaMemcpyHostToDevice))
+    cudaMemcpy(cutl, cut, sizeof(int)* blocks * warpsperblock, cudaMemcpyHostToDevice))
     fprintf(stderr, "copying of cut to device failed\n");
 
   // CompressionKernel << <blocks, WARPSIZE*warpsperblock >> >();
@@ -126,7 +131,7 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
 
   // transfer offsets back to CPU
   if (cudaSuccess !=
-      cudaMemcpy(off, offl, sizeof(int) * blocks * warpsperblock, cudaMemcpyDeviceToHost))
+    cudaMemcpy(off, offl, sizeof(int)* blocks * warpsperblock, cudaMemcpyDeviceToHost))
     fprintf(stderr, "copying of off from device failed\n");
 
   std::ostringstream my_ss;
@@ -175,7 +180,7 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
     offset = ((start + 1) / 2 * 17);
     // transfer compressed data back to CPU by chunk
     if (cudaSuccess !=
-        cudaMemcpy(dbuf + offset, dbufl + offset, sizeof(char) * off[i], cudaMemcpyDeviceToHost)) {
+      cudaMemcpy(dbuf + offset, dbufl + offset, sizeof(char)* off[i], cudaMemcpyDeviceToHost)) {
 
       fprintf(stderr, "copying of dbuf from device failed\n");
     }
@@ -187,24 +192,24 @@ void Exp_Cuda_GFC::Init(std::vector<cuda::CudaDevice> &devices) {
 
   cout << "Original size: " << readable_fs(SIZE * 8) << endl;
   cout << "Compressed size: "
-       << " " << readable_fs(totalsize) << endl;
+    << " " << readable_fs(totalsize) << endl;
   cout << "Ratio: " << (float)totalsize / (float)(SIZE * 8) << endl;
   cout << "Time: " << t.Duration_NS() << endl;
   cout << "Speed: " << ((double)SIZE / 1024.0 / 1024.0) / ((double)t.Duration_NS() * 0.000000001)
-       << "MB/s" << endl;
+    << "MB/s" << endl;
 
   // DECOMPRESS
 
   unsigned long long *uncompressed_data_buffer_out;
-  if (cudaSuccess != cudaMalloc((void **)&uncompressed_data_buffer_out, sizeof(ull) * doubles))
+  if (cudaSuccess != cudaMalloc((void **)&uncompressed_data_buffer_out, sizeof(ull)* doubles))
     fprintf(stderr, "could not allocate cbufd\n");
   cudaDeviceSynchronize();
   t.Start();
   RunGfCDECompress(blocks, WARPSIZE, 0, dimensionality,
-                   (unsigned char *)dbufl,      // compressed_data_buffer_in
-                   cutl,                        // chunk_boundaries_buffer_in
-                   uncompressed_data_buffer_out // uncompressed_data_buffer_out
-                   );
+    (unsigned char *)dbufl,      // compressed_data_buffer_in
+    cutl,                        // chunk_boundaries_buffer_in
+    uncompressed_data_buffer_out // uncompressed_data_buffer_out
+    );
   cudaDeviceSynchronize();
   t.Stop();
   getLastCudaError("GFC Decompression Kernel() execution failed.\n");

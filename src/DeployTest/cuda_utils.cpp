@@ -1,10 +1,10 @@
 #include "cuda_utils.h"
 #include "utils.h"
-#include <memory>
-#include <iostream>
-#include <cuda_runtime.h>
-#include <cuda.h>
 #include <assert.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <iostream>
+#include <memory>
 using namespace std;
 
 namespace cuda {

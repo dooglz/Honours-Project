@@ -1,11 +1,11 @@
 #pragma once
-#include <stdint.h>
-#include <vector>
-#include "experiment.h"
 #include "cuda_utils.h"
-#include <mutex>
-#include <thread>
+#include "experiment.h"
 #include <chrono>
+#include <mutex>
+#include <stdint.h>
+#include <thread>
+#include <vector>
 
 using namespace std;
 
