@@ -49,13 +49,12 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
     cout << "Data transfer mode (0 HostRam, 1 peer, 2 UVA)" << std::endl;
     optmode = promptValidated<int, int>("optmode: ", [](int i) { return (i >= 0 && i <= 2); });
   }
-  if (optmode == 1){
+  if (optmode == 1) {
     if (!cuda::enableP2P(0, 1)) {
       cerr << "Couldn't enable P2P, returning" << std::endl;
       return;
     }
-  }
-  else  if (optmode == 2){
+  } else if (optmode == 2) {
     cerr << "Couldn't enable UVA, returning" << std::endl;
     if (!cuda::enableUVA(0, 1)) {
       return;
@@ -104,19 +103,24 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
 
   while (ShouldRun() && runs < num_runs) {
     vector<unsigned long long> times;
-
+    unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
+    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
+         << std::flush;
     // copy from 0 to 1
     checkCudaErrors(cudaEventRecord(start, streams[0]));
     switch (optmode) {
     case 0: // copy to host
-      checkCudaErrors(cudaMemcpyAsync(host_mem, device_mem[0], dataSize, cudaMemcpyDeviceToHost, streams[0]));
-      checkCudaErrors(cudaMemcpyAsync(device_mem[1], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(host_mem, device_mem[0], dataSize, cudaMemcpyDeviceToHost, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(device_mem[1], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
       break;
     case 1: // use peercopy
       checkCudaErrors(cudaMemcpyPeer(device_mem[1], 1, device_mem[0], 0, dataSize));
       break;
     case 2: // use UVA
-      checkCudaErrors(cudaMemcpyAsync(device_mem[1], device_mem[0], dataSize, cudaMemcpyDefault, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(device_mem[1], device_mem[0], dataSize, cudaMemcpyDefault, streams[0]));
       break;
     }
     checkCudaErrors(cudaEventRecord(end, streams[0]));
@@ -129,14 +133,17 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
     checkCudaErrors(cudaEventRecord(start, streams[0]));
     switch (optmode) {
     case 0: // copy to host
-      checkCudaErrors(cudaMemcpyAsync(host_mem, device_mem[1], dataSize, cudaMemcpyDeviceToHost, streams[0]));
-      checkCudaErrors(cudaMemcpyAsync(device_mem[0], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(host_mem, device_mem[1], dataSize, cudaMemcpyDeviceToHost, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(device_mem[0], host_mem, dataSize, cudaMemcpyHostToDevice, streams[0]));
       break;
     case 1: // use peercopy
       checkCudaErrors(cudaMemcpyPeer(device_mem[0], 0, device_mem[1], 1, dataSize));
       break;
     case 2: // use UVA
-      checkCudaErrors(cudaMemcpyAsync(device_mem[0], device_mem[1], dataSize, cudaMemcpyDefault, streams[0]));
+      checkCudaErrors(
+          cudaMemcpyAsync(device_mem[0], device_mem[1], dataSize, cudaMemcpyDefault, streams[0]));
       break;
     }
     checkCudaErrors(cudaEventRecord(end, streams[0]));

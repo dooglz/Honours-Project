@@ -1,0 +1,25 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Merge</title>
+
+
+</head>
+
+<body>
+ Rows From:<input type="text" id="rft" name="rows From" value="13"/><br>
+ Rows To:<input type="text" id="rtt" name="rows To"value="312"/><br>
+ Collumns From:<input type="text" id="cft" name="Collumns From"value="1"/><br>
+ Collumns To:<input type="text" id="ctt" name="Collumns To"value="2"/><br>
+<input type="file" id="files" name="files[]" multiple /><br>
+<input type="button" id="cc" name="crunch" value="crunch"onclick="saveTextAsFile(ToCSV(gog))"/>
+<output id="list"></output>
+
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+  <script src="merge.js"></script>
+</body>
+</html>
