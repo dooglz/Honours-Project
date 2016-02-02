@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <assert.h>
 #include <cuda_runtime.h>
 
 namespace cuda {
@@ -36,6 +37,7 @@ void check(T result, char const *const func, const char *const file, int const l
             static_cast<unsigned int>(result), _cudaGetErrorEnum(result), func);
     cudaDeviceReset();
     // Make sure we call CUDA Device Reset before exiting
+    assert(false);
     exit(EXIT_FAILURE);
   }
 }

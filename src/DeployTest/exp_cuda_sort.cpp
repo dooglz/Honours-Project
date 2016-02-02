@@ -2,6 +2,7 @@
 #include "cuda_utils.h"
 #include "exp_cuda_sort.h"
 #include "utils.h"
+#include <algorithm>
 #include <assert.h>
 #include <chrono> // std::chrono::seconds
 #include <iostream>
@@ -20,13 +21,15 @@ void RunSortKernel(dim3 blocks, dim3 threads, cudaStream_t stream, int *theArray
                    const unsigned int width);
 
 #define DEFAULTPOWER 18
-#define VERIFY 1
+#define VERIFY 0
+#define CUDATIME 1
 CudaSort::CudaSort() : CudaExperiment(1, 4, "CudaSort", "Sorts Things") {}
 
 CudaSort::~CudaSort() {}
 
 static vector<cuda::CudaDevice> CtxDevices;
-unsigned int CudaSort::GetMinCu() { return 2; //TODO fix to allow just one card to sort
+unsigned int CudaSort::GetMinCu() {
+  return 2; // TODO fix to allow just one card to sort
 }
 unsigned int CudaSort::GetMax() { return 4; }
 void CudaSort::Init(std::vector<cuda::CudaDevice> &devices) { CtxDevices = devices; }
@@ -37,7 +40,7 @@ const int blocksize = 16;
 const int threadsperblock = 512;
 uint32_t mxount = 0;
 void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
-  if (CtxDevices.size() < GetMinCu() || CtxDevices.size() > GetMax()){
+  if (CtxDevices.size() < GetMinCu() || CtxDevices.size() > GetMax()) {
     std::cout << "\n invalid number of devices\n";
     return;
   }
@@ -91,13 +94,12 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   if (optmode == 1 || optmode == 2) {
     checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
     checkCudaErrors(cudaMalloc(&gpu1SwapBuffer, (maxNPC / 2) * sizeof(uint32_t)));
-    if (optmode == 1){
+    if (optmode == 1) {
       std::cout << "attemptiung p2p" << endl;
       if (!cuda::enableP2P(0, 1)) {
         return;
       }
-    }
-    else if(optmode == 2) {
+    } else if (optmode == 2) {
       std::cout << "attemptiung UVA p2p" << endl;
       if (GPU_N != 2) {
         cerr << "Need 2 gpus!" << endl;
@@ -124,32 +126,70 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   r.headdings = {"time_writebuffer"};
   r.attributes.push_back("Optimised Swapping mode, " + optmode);
 
+#if CUDATIME
+  cudaEvent_t *time_writebuffer_events = new cudaEvent_t[2 * GPU_N];
+  cudaEvent_t *time_sort_inner_events = new cudaEvent_t[2 * GPU_N];
+  cudaEvent_t *time_swap_inner_events = new cudaEvent_t[2 * GPU_N];
+  for (auto i = 0; i < (GPU_N); i++) {
+    checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+    checkCudaErrors(cudaEventCreate(&time_writebuffer_events[2 * i]));
+    checkCudaErrors(cudaEventCreate(&time_writebuffer_events[(2 * i) + 1]));
+    checkCudaErrors(cudaEventCreate(&time_sort_inner_events[2 * i]));
+    checkCudaErrors(cudaEventCreate(&time_sort_inner_events[(2 * i) + 1]));
+    checkCudaErrors(cudaEventCreate(&time_swap_inner_events[2 * i]));
+    checkCudaErrors(cudaEventCreate(&time_swap_inner_events[(2 * i) + 1]));
+  }
+#endif
+
   while (ShouldRun() && runs < num_runs) {
     vector<unsigned long long> times;
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
-    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
-         << std::flush;
+    std::cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
+              << std::flush;
 
     // copy fresh rand data into host buffers
     for (auto i = 0; i < GPU_N; i++) {
       const uint32_t offset = (i * maxNPC);
       std::copy(&rndData[offset], &rndData[offset + maxNPC], hostBuffers[i]);
     }
+
+#if CUDATIME
+    float totalTimeForWriteBuffer = 0;
+#else
     Timer time_writebuffer;
+#endif
+
     // Copy data to GPU,
+
     for (auto i = 0; i < GPU_N; i++) {
       checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+#if CUDATIME
+      checkCudaErrors(cudaEventRecord(time_writebuffer_events[2 * i], streams[i]));
+#endif
       checkCudaErrors(
           cudaMemcpyAsync(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice, streams[i]));
+#if CUDATIME
+      checkCudaErrors(cudaEventRecord(time_writebuffer_events[(2 * i) + 1], streams[i]));
+#endif
     }
     // wait
+
     for (auto i = 0; i < GPU_N; i++) {
       cudaStreamSynchronize(streams[i]);
+#if CUDATIME
+      float time_ms;
+      checkCudaErrors(cudaEventElapsedTime(&time_ms, time_writebuffer_events[2 * i],
+                                           time_writebuffer_events[(2 * i) + 1]));
+      totalTimeForWriteBuffer = max(time_ms, totalTimeForWriteBuffer);
+#endif
     }
 
+#if CUDATIME
+    times.push_back(totalTimeForWriteBuffer * 1000000.0f);
+#else
     time_writebuffer.Stop();
     times.push_back(time_writebuffer.Duration_NS());
-
+#endif
     // run the sort.
     unsigned int swapcount = 0;
     for (cl_uint swapsize = maxNPC / 2; swapsize > 0; swapsize /= 2) {
@@ -157,7 +197,13 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         r.headdings.push_back("Sort_" + to_string(swapcount));
         r.headdings.push_back("Swap_" + to_string(swapsize));
       }
+
+#if CUDATIME
+      float time_sort_inner = 0;
+#else
       Timer time_sort_inner;
+#endif
+
       unsigned int threadsperBlock = cuda::getBlockCount(threadsperblock, maxNPC);
 
       dim3 blocks((maxNPC / threadsperBlock), 1);
@@ -165,6 +211,9 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
       for (size_t i = 0; i < GPU_N; i++) {
         checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_sort_inner_events[(2 * i)], streams[i]));
+#endif
         int j, k;
         /* Major step */
         for (k = 2; k <= maxNPC; k <<= 1) {
@@ -174,22 +223,40 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
             getLastCudaError("reduceKernel() execution failed.\n");
           }
         }
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_sort_inner_events[(2 * i) + 1], streams[i]));
+#endif
       }
       for (auto i = 0; i < GPU_N; i++) {
         checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
         cudaDeviceSynchronize();
         cudaStreamSynchronize(streams[i]);
+#if CUDATIME
+        float time_ms;
+        checkCudaErrors(cudaEventElapsedTime(&time_ms, time_sort_inner_events[2 * i],
+                                             time_sort_inner_events[(2 * i) + 1]));
+        time_sort_inner = max(time_ms, time_sort_inner);
+#endif
       }
 
+#if CUDATIME
+      times.push_back(time_sort_inner  * 1000000.0f);
+      float time_swap_inner = 0;
+#else
       time_sort_inner.Stop();
       times.push_back(time_sort_inner.Duration_NS());
       Timer time_swap_inner;
+#endif
+
       // Do swaps
 
       uint32_t a = swapsize * sizeof(uint32_t);
       if (optmode == 2) {
         // copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[1]));
+#endif
         checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
 
@@ -207,6 +274,10 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       } else if (optmode == 1) {
         // copy top of card 1 to it's swapbuffer
         checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[1]));
+#endif
+
         checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
         cudaDeviceSynchronize();
 
@@ -224,6 +295,9 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         // read back all data
         for (auto i = 0; i < GPU_N; i++) {
           checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+#if CUDATIME
+          checkCudaErrors(cudaEventRecord(time_swap_inner_events[2*i], streams[i]));
+#endif
           checkCudaErrors(cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC,
                                           cudaMemcpyDeviceToHost, streams[i]));
         }
@@ -255,12 +329,20 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       // wait
       for (auto i = 0; i < GPU_N; i++) {
         checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[(2 * i) + 1], streams[i]));
+#endif
         cudaStreamSynchronize(streams[i]);
         cudaDeviceSynchronize();
       }
 
+#if CUDATIME
+      times.push_back(time_swap_inner * 0.001f);
+#else
       time_swap_inner.Stop();
       times.push_back(time_swap_inner.Duration_NS());
+#endif
+
       ++swapcount;
     }
 
@@ -280,6 +362,10 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     time_copyback.Stop();
     times.push_back(time_copyback.Duration_NS());
 
+//middle value could need swapped
+    const auto a = hostBuffers[0][maxNPC];
+    const auto b = hostBuffers[1][maxNPC];
+
 #if VERIFY == 1
     uint32_t *outData = new uint32_t[maxN];
     std::copy(&hostBuffers[0][0], &hostBuffers[0][maxNPC], outData);
@@ -298,6 +384,18 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     checkCudaErrors(cudaStreamDestroy(streams[i]));
     checkCudaErrors(cudaFreeHost(hostBuffers[i]));
   }
+
+#if CUDATIME
+  for (auto i = 0; i < (GPU_N); i++) {
+    checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+    checkCudaErrors(cudaEventDestroy(time_writebuffer_events[2 * i]));
+    checkCudaErrors(cudaEventDestroy(time_writebuffer_events[(2 * i) + 1]));
+    checkCudaErrors(cudaEventDestroy(time_sort_inner_events[2 * i]));
+    checkCudaErrors(cudaEventDestroy(time_sort_inner_events[(2 * i) + 1]));
+    checkCudaErrors(cudaEventDestroy(time_swap_inner_events[2 * i]));
+    checkCudaErrors(cudaEventDestroy(time_swap_inner_events[(2 * i) + 1]));
+  }
+#endif
 
   delete streams;
   delete[] hostBuffers;
