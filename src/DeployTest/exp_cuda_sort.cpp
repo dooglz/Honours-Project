@@ -334,10 +334,15 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 #endif
         cudaStreamSynchronize(streams[i]);
         cudaDeviceSynchronize();
+        float time_ms;
+        checkCudaErrors(cudaEventElapsedTime(&time_ms, time_swap_inner_events[2 * i],
+          time_swap_inner_events[(2 * i) + 1]));
+        time_swap_inner = max(time_ms, time_swap_inner);
+
       }
 
 #if CUDATIME
-      times.push_back(time_swap_inner * 0.001f);
+      times.push_back(time_swap_inner * 1000000.0f);
 #else
       time_swap_inner.Stop();
       times.push_back(time_swap_inner.Duration_NS());
