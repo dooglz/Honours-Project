@@ -1,4 +1,4 @@
-#include "Timer.h"
+#include "timer.h"
 #include "exp_cuda_pingpong.h"
 #include "utils.h"
 #include <assert.h>

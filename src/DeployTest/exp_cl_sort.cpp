@@ -1,6 +1,6 @@
 #include "exp_cl_sort.h"
 #include "utils.h"
-#include "Timer.h"
+#include "timer.h"
 #include <chrono> // std::chrono::seconds
 #include <thread>
 #include <stdio.h>

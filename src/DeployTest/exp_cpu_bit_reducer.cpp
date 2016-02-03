@@ -1,7 +1,7 @@
 #include "exp_cpu_bit_reducer.h"
 
 #include "utils.h"
-#include "Timer.h"
+#include "timer.h"
 #include "limits.h"
 #include <chrono>
 #include <thread>

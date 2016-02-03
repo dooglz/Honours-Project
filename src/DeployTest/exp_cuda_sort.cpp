@@ -1,4 +1,4 @@
-#include "Timer.h"
+#include "timer.h"
 #include "cuda_utils.h"
 #include "exp_cuda_sort.h"
 #include "utils.h"

@@ -2,7 +2,7 @@
 #include "compressor_cuda_bitreducer.h"
 
 #include "utils.h"
-#include "Timer.h"
+#include "timer.h"
 #include <chrono>
 #include <thread>
 #include <stdio.h>

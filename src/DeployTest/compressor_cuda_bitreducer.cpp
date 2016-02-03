@@ -1,7 +1,7 @@
 #pragma once
 #include "compressor_cuda_bitreducer.h"
 #include "cuda_utils.h"
-#include "Timer.h"
+#include "timer.h"
 #include <vector>
 #include <chrono>
 
