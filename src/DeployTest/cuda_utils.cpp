@@ -281,10 +281,16 @@ const bool enableUVA(const int gpu0, const int gpu1) {
   if (v1 != cudaErrorPeerAccessAlreadyEnabled) {
     checkCudaErrors(v1);
   }
+  else{
+    cudaGetLastError();
+  }
   checkCudaErrors(cudaSetDevice(gpus[1]));
   const auto v2 = cudaDeviceEnablePeerAccess(gpus[0], 0);
   if (v2 != cudaErrorPeerAccessAlreadyEnabled) {
     checkCudaErrors(v2);
+  }
+  else{
+    cudaGetLastError();
   }
 
   // Check that we got UVA on both devices
@@ -322,10 +328,16 @@ const bool enableP2P(const int gpu0, const int gpu1) {
   if (v1 != cudaErrorPeerAccessAlreadyEnabled) {
     checkCudaErrors(v1);
   }
+  else{
+    cudaGetLastError();
+  }
   checkCudaErrors(cudaSetDevice(gpus[1]));
   const auto v2 = cudaDeviceEnablePeerAccess(gpus[0], 0);
   if (v2 != cudaErrorPeerAccessAlreadyEnabled) {
     checkCudaErrors(v2);
+  }
+  else{
+    cudaGetLastError();
   }
 
   return true;

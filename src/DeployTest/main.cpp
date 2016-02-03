@@ -108,14 +108,17 @@ int main(int argc, const char *argv[]) {
 
   // init cl
   cl::Init();
-  cl::PrintInfo();
+  if (!batch){
+    cl::PrintInfo();
+  }
   std::vector<cl::CLDevice *> devices;
   cl::GetRecommendedDevices(7, devices);
 
   // init cuda
   cuda::Init();
-  cuda::PrintInfo();
-
+  if (!batch){
+    cuda::PrintInfo();
+  }
   // start menu system
   std::cout << "\nRecommended devices:\n";
   for (auto dev : devices) {
