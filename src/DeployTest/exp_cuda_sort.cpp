@@ -1,6 +1,6 @@
-#include "timer.h"
 #include "cuda_utils.h"
 #include "exp_cuda_sort.h"
+#include "timer.h"
 #include "utils.h"
 #include <algorithm>
 #include <assert.h>
@@ -255,44 +255,59 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
       uint32_t a = swapsize * sizeof(uint32_t);
       if (optmode == 2) {
-        // copy top of card 1 to it's swapbuffer
+
         checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
 #if CUDATIME
-        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[1]));
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[2], streams[1]));
 #endif
-        checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
-        cudaDeviceSynchronize();
+        // copy top of card 1 to it's swapbuffer
+        checkCudaErrors(
+            cudaMemcpyAsync(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice, streams[1]));
+        // cudaDeviceSynchronize();
 
         // copy bottom of card 0 to top of card 1
-        checkCudaErrors(
-            cudaMemcpy(inBuffers[1], &inBuffers[0][(maxNPC - swapsize)], a, cudaMemcpyDefault));
-        cudaDeviceSynchronize();
+        checkCudaErrors(cudaMemcpyAsync(inBuffers[1], &inBuffers[0][(maxNPC - swapsize)], a,
+                                        cudaMemcpyDefault, streams[1]));
+        // cudaDeviceSynchronize();
 
         // write the top of card 1 to the bottom of card 0
         checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
-        checkCudaErrors(cudaMemcpy(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a,
-                                   cudaMemcpyHostToDevice));
-        cudaDeviceSynchronize();
-
+        checkCudaErrors(cudaMemcpyAsync(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a,
+                                        cudaMemcpyHostToDevice, streams[1]));
+        // cudaDeviceSynchronize();
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[3], streams[1]));
+        // do this just so we can keep the same logic below
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[0]));
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[1], streams[0]));
+#endif
       } else if (optmode == 1) {
-        // copy top of card 1 to it's swapbuffer
+
         checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
 #if CUDATIME
-        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[1]));
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[2], streams[1]));
 #endif
-
-        checkCudaErrors(cudaMemcpy(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice));
-        cudaDeviceSynchronize();
+        // copy top of card 1 to it's swapbuffer
+        checkCudaErrors(
+            cudaMemcpyAsync(gpu1SwapBuffer, inBuffers[1], a, cudaMemcpyDeviceToDevice, streams[1]));
+        // cudaDeviceSynchronize();
 
         // copy bottom of card 0 to top of card 1
-        checkCudaErrors(cudaMemcpyPeer(inBuffers[1], 1, &inBuffers[0][(maxNPC - swapsize)], 0, a));
-        cudaDeviceSynchronize();
+        checkCudaErrors(cudaMemcpyPeerAsync(inBuffers[1], 1, &inBuffers[0][(maxNPC - swapsize)], 0,
+                                            a, streams[1]));
+        // cudaDeviceSynchronize();
 
-        // write the top of card 1 to the bottom of card 0
-        checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
-        checkCudaErrors(
-            cudaMemcpyPeer(&inBuffers[0][(maxNPC - swapsize)], 0, gpu1SwapBuffer, 1, a));
-        cudaDeviceSynchronize();
+        // write the top of card 1 (swapbuffer) to the bottom of card 0
+        // checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
+        checkCudaErrors(cudaMemcpyPeerAsync(&inBuffers[0][(maxNPC - swapsize)], 0, gpu1SwapBuffer,
+                                            1, a, streams[1]));
+#if CUDATIME
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[3], streams[1]));
+        // do this just so we can keep the same logic below
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[0], streams[0]));
+        checkCudaErrors(cudaEventRecord(time_swap_inner_events[1], streams[0]));
+#endif
+        // cudaDeviceSynchronize();
       } else {
         uint32_t *tmpData = new uint32_t[swapsize];
         // read back all data
@@ -325,16 +340,16 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
 
           // Copy input data from CPU
           checkCudaErrors(cudaMemcpy(inBuffers[i], hostBuffers[i], szPC, cudaMemcpyHostToDevice));
-          cudaDeviceSynchronize();
+#if CUDATIME
+          checkCudaErrors(cudaEventRecord(time_swap_inner_events[(2 * i) + 1], streams[i]));
+#endif
+          // cudaDeviceSynchronize();
         }
       }
 
       // wait
       for (auto i = 0; i < GPU_N; i++) {
         checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
-#if CUDATIME
-        checkCudaErrors(cudaEventRecord(time_swap_inner_events[(2 * i) + 1], streams[i]));
-#endif
         cudaStreamSynchronize(streams[i]);
         cudaDeviceSynchronize();
         float time_ms;

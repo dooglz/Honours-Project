@@ -277,9 +277,15 @@ const bool enableUVA(const int gpu0, const int gpu1) {
   // Enable peer access
   printf("Enabling peer access between GPU%d and GPU%d...\n", gpus[0], gpus[1]);
   checkCudaErrors(cudaSetDevice(gpus[0]));
-  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[1], 0));
+  const auto v1 = cudaDeviceEnablePeerAccess(gpus[1], 0);
+  if (v1 != cudaErrorPeerAccessAlreadyEnabled) {
+    checkCudaErrors(v1);
+  }
   checkCudaErrors(cudaSetDevice(gpus[1]));
-  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[0], 0));
+  const auto v2 = cudaDeviceEnablePeerAccess(gpus[0], 0);
+  if (v2 != cudaErrorPeerAccessAlreadyEnabled) {
+    checkCudaErrors(v2);
+  }
 
   // Check that we got UVA on both devices
   const bool has_uva = (p[gpus[0]].unifiedAddressing && p[gpus[1]].unifiedAddressing);
@@ -292,7 +298,7 @@ const bool enableUVA(const int gpu0, const int gpu1) {
 }
 
 const bool enableP2P(const int gpu0, const int gpu1) {
-  int gpus[2] = { gpu0, gpu1 };
+  int gpus[2] = {gpu0, gpu1};
   cudaDeviceProp p[2];
   for (auto i = 0; i < 2; i++) {
     checkCudaErrors(cudaGetDeviceProperties(&p[i], gpus[i]));
@@ -312,8 +318,16 @@ const bool enableP2P(const int gpu0, const int gpu1) {
   printf("Enabling peer access between GPU%d and GPU%d...\n", gpus[0], gpus[1]);
   checkCudaErrors(cudaSetDevice(gpus[0]));
   checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[1], 0));
+  const auto v1 = cudaDeviceEnablePeerAccess(gpus[1], 0);
+  if (v1 != cudaErrorPeerAccessAlreadyEnabled) {
+    checkCudaErrors(v1);
+  }
   checkCudaErrors(cudaSetDevice(gpus[1]));
-  checkCudaErrors(cudaDeviceEnablePeerAccess(gpus[0], 0));
+  const auto v2 = cudaDeviceEnablePeerAccess(gpus[0], 0);
+  if (v2 != cudaErrorPeerAccessAlreadyEnabled) {
+    checkCudaErrors(v2);
+  }
+
   return true;
 }
 
