@@ -22,6 +22,8 @@ static vector<cuda::CudaDevice> CtxDevices;
 unsigned int Exp_Cuda_PingPong::GetMinCu() { return 2; }
 unsigned int Exp_Cuda_PingPong::GetMax() { return 2; }
 
+void Run_NothingKernel(dim3 a, dim3 b, cudaStream_t stream, uint32_t*buf);
+
 void Exp_Cuda_PingPong::Init(std::vector<cuda::CudaDevice> &devices) { CtxDevices = devices; }
 void Exp_Cuda_PingPong::Shutdown() {}
 
@@ -68,6 +70,10 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   cudaStream_t streams[2];
   uint32_t *host_mem;
 
+  unsigned int threadsperBlock = cuda::getBlockCount(512, count);
+  dim3 blocks((count / threadsperBlock), 1);
+  dim3 threads(threadsperBlock, 1);
+
   // malloc
   checkCudaErrors(cudaMallocHost((void **)&host_mem, dataSize));
   for (size_t i = 0; i < 2; i++) {
@@ -98,7 +104,7 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   cudaEventCreate(&end);
   ResultFile r;
   float time_ms;
-  r.name = "Cuda_PingPong" + to_string(count);
+  r.name = "Cuda_PingPong_" + to_string(optmode)+ "_" + to_string(count);
   r.headdings = {"A to B", "B to A"};
 
   while (ShouldRun() && runs < num_runs) {
@@ -129,6 +135,15 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
     checkCudaErrors(cudaEventElapsedTime(&time_ms, start, end));
     times.push_back(msFloatTimetoNS(time_ms));
 
+
+    //Run a junk kernel just to force the driver to make sure stuff actually copied
+    checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
+    Run_NothingKernel(blocks, threads, streams[0], device_mem[1]);
+    cudaStreamSynchronize(streams[0]);
+    cudaDeviceSynchronize();
+    checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
+    cudaDeviceSynchronize();
+
     // copy back
     checkCudaErrors(cudaEventRecord(start, streams[0]));
     switch (optmode) {
@@ -147,6 +162,14 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
       break;
     }
     checkCudaErrors(cudaEventRecord(end, streams[0]));
+
+    //Run a junk kernel just to force the driver to make sure stuff actually copied
+    checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
+    Run_NothingKernel(blocks, threads, streams[0], device_mem[0]);
+    cudaStreamSynchronize(streams[0]);
+    cudaDeviceSynchronize();
+    checkCudaErrors(cudaSetDevice(CtxDevices[1].id));
+    cudaDeviceSynchronize();
 
     checkCudaErrors(cudaStreamSynchronize(streams[0]));
     checkCudaErrors(cudaEventElapsedTime(&time_ms, start, end));
