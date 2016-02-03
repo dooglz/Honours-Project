@@ -130,6 +130,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   cudaEvent_t *time_writebuffer_events = new cudaEvent_t[2 * GPU_N];
   cudaEvent_t *time_sort_inner_events = new cudaEvent_t[2 * GPU_N];
   cudaEvent_t *time_swap_inner_events = new cudaEvent_t[2 * GPU_N];
+  cudaEvent_t *time_copyback_events = new cudaEvent_t[2 * GPU_N];
   for (auto i = 0; i < (GPU_N); i++) {
     checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
     checkCudaErrors(cudaEventCreate(&time_writebuffer_events[2 * i]));
@@ -138,6 +139,8 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     checkCudaErrors(cudaEventCreate(&time_sort_inner_events[(2 * i) + 1]));
     checkCudaErrors(cudaEventCreate(&time_swap_inner_events[2 * i]));
     checkCudaErrors(cudaEventCreate(&time_swap_inner_events[(2 * i) + 1]));
+    checkCudaErrors(cudaEventCreate(&time_copyback_events[2 * i]));
+    checkCudaErrors(cudaEventCreate(&time_copyback_events[(2 * i) + 1]));
   }
 #endif
 
@@ -240,7 +243,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
       }
 
 #if CUDATIME
-      times.push_back(time_sort_inner  * 1000000.0f);
+      times.push_back(time_sort_inner * 1000000.0f);
       float time_swap_inner = 0;
 #else
       time_sort_inner.Stop();
@@ -296,7 +299,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         for (auto i = 0; i < GPU_N; i++) {
           checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
 #if CUDATIME
-          checkCudaErrors(cudaEventRecord(time_swap_inner_events[2*i], streams[i]));
+          checkCudaErrors(cudaEventRecord(time_swap_inner_events[2 * i], streams[i]));
 #endif
           checkCudaErrors(cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC,
                                           cudaMemcpyDeviceToHost, streams[i]));
@@ -336,9 +339,8 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         cudaDeviceSynchronize();
         float time_ms;
         checkCudaErrors(cudaEventElapsedTime(&time_ms, time_swap_inner_events[2 * i],
-          time_swap_inner_events[(2 * i) + 1]));
+                                             time_swap_inner_events[(2 * i) + 1]));
         time_swap_inner = max(time_ms, time_swap_inner);
-
       }
 
 #if CUDATIME
@@ -354,20 +356,44 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
     if (runs == 0) {
       r.headdings.push_back("Copy Back");
     }
+
+#if CUDATIME
+    // times.push_back(time_swap_inner * 1000000.0f);
+    float time_copyback = 0;
+#else
     Timer time_copyback;
+#endif
+
     // read back all data
     for (auto i = 0; i < GPU_N; i++) {
       checkCudaErrors(cudaSetDevice(CtxDevices[i].id));
+#if CUDATIME
+      checkCudaErrors(cudaEventRecord(time_copyback_events[(2 * i)], streams[i]));
+#endif
       checkCudaErrors(
           cudaMemcpyAsync(hostBuffers[i], inBuffers[i], szPC, cudaMemcpyDeviceToHost, streams[i]));
+#if CUDATIME
+      checkCudaErrors(cudaEventRecord(time_copyback_events[(2 * i) + 1], streams[i]));
+#endif
     }
     for (auto i = 0; i < GPU_N; i++) {
       cudaStreamSynchronize(streams[i]);
+#if CUDATIME
+      float time_ms;
+      checkCudaErrors(cudaEventElapsedTime(&time_ms, time_copyback_events[2 * i],
+                                           time_copyback_events[(2 * i) + 1]));
+      time_copyback = max(time_ms, time_copyback);
+#endif
     }
+
+#if CUDATIME
+    times.push_back(time_copyback * 1000000.0f);
+#else
     time_copyback.Stop();
     times.push_back(time_copyback.Duration_NS());
+#endif
 
-//middle value could need swapped
+    // middle value could need swapped
     const auto a = hostBuffers[0][maxNPC];
     const auto b = hostBuffers[1][maxNPC];
 
