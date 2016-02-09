@@ -10,7 +10,7 @@
 compressor_cuda_bitreducer::compressor_cuda_bitreducer() {}
 compressor_cuda_bitreducer::~compressor_cuda_bitreducer() {}
 
-void compressor_cuda_bitreducer::Init() { times = nullptr; }
+void compressor_cuda_bitreducer::Init() { times = nullptr;  timing = false; }
 void compressor_cuda_bitreducer::Shutdown() {}
 
 void compressor_cuda_bitreducer::EnableTiming(std::vector<unsigned long long> *vtimes) {

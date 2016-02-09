@@ -38,7 +38,7 @@ void Exp_Cuda_PingPong::Start(unsigned int num_runs, const std::vector<int> opti
   if (options.size() > 0) {
     power = options[0];
   } else {
-    cout << "Power of numbers to sort?: (0 for default)" << std::endl;
+    cout << "Power of numbers to swap?: (0 for default)" << std::endl;
     power = promptValidated<int, int>("Power: ", [](int i) { return (i >= 0 && i <= 256); });
   }
   if (power == 0) {
