@@ -155,7 +155,7 @@ void compressor_cuda_bitreducer::Compress(const uint32_t *gpuBuffer, const size_
 
   const float ratio = (float)outSize / (float)(dataSize * sizeof(uint32_t));
   if (timing) {
-    times->push_back((unsigned long long)(ratio*100.0f));
+    times->push_back((unsigned long long)(ratio*10000.0f));
   }
 }
 

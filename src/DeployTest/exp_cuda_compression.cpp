@@ -89,7 +89,7 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 	should_run = true;
 
 	ResultFile r;
-  r.name = "Cuda_Compress_" + to_string(count);
+  r.name = "Cuda_Bit_Compressor_" + to_string(count);
 	r.headdings = cmprsr->TimingHeadders();
   //r.headdings = { r.name, "Ratio" };
 
@@ -100,6 +100,15 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 		unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
 		cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
 			<< std::flush;
+    
+//regen
+    for (size_t i = 0; i < count; ++i) {
+      uint32_t x = 0;
+      host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
+      host_mem[i] = (x << 14) | ((uint32_t)rand() & 0x3FFF);
+    }
+    checkCudaErrors(cudaMemcpyAsync(device_mem, host_mem, dataSize, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaDeviceSynchronize());
 
 		times.clear();
 
