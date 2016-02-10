@@ -76,12 +76,12 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 
 	//send data to gpu
   cudaEvent_t transfer_start, transfer_end;
-  cudaEventCreate(&transfer_start);
-  cudaEventCreate(&transfer_end);
+  //cudaEventCreate(&transfer_start);
+  //cudaEventCreate(&transfer_end);
 
-  checkCudaErrors(cudaEventRecord(transfer_start, stream));
+//  checkCudaErrors(cudaEventRecord(transfer_start, stream));
 	checkCudaErrors(cudaMemcpyAsync(device_mem, host_mem, dataSize, cudaMemcpyHostToDevice, stream));
-  checkCudaErrors(cudaEventRecord(transfer_end, stream));
+  //checkCudaErrors(cudaEventRecord(transfer_end, stream));
 	checkCudaErrors(cudaDeviceSynchronize());
 
 	unsigned int runs = 0;
@@ -90,11 +90,11 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 
 	ResultFile r;
   r.name = "Cuda_Compress_" + to_string(count);
-	//r.headdings = cmprsr->TimingHeadders();
-  r.headdings = { r.name, "Ratio" };
+	r.headdings = cmprsr->TimingHeadders();
+  //r.headdings = { r.name, "Ratio" };
 
 	vector<unsigned long long> times;
-	//cmprsr->EnableTiming(&times);
+	cmprsr->EnableTiming(&times);
 
 	while (ShouldRun() && runs < num_runs) {
 		unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
@@ -107,8 +107,8 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 		uint32_t compressed_size;
 
     cudaEvent_t compress_start, compress_end;
-    cudaEventCreate(&compress_start);
-    cudaEventCreate(&compress_end);
+    //cudaEventCreate(&compress_start);
+   // cudaEventCreate(&compress_end);
 
    // checkCudaErrors(cudaEventRecord(compress_start, stream));
     cmprsr->Compress(device_mem, count, compressed_buffer, compressed_size, stream);
@@ -123,15 +123,15 @@ void Exp_Cuda_Compression::Start(unsigned int num_runs, const std::vector<int> o
 
     float time_ms = 0.0f;
    // checkCudaErrors(cudaEventElapsedTime(&time_ms, compress_start, compress_end));
-    const float ratio = (float)compressed_size / (float)(dataSize * sizeof(uint32_t));
-    r.times.push_back({ msFloatTimetoNS(time_ms), (unsigned long long)(ratio*100.0f) });
+  //  const float ratio = (float)compressed_size / (float)(dataSize * sizeof(uint32_t));
+   // r.times.push_back({ msFloatTimetoNS(time_ms), (unsigned long long)(ratio*100.0f) });
 
-		//r.times.push_back(times);
+		r.times.push_back(times);
 
-    cudaEventDestroy(compress_start);
-    cudaEventDestroy(compress_end);
-    cudaEventDestroy(transfer_start);
-    cudaEventDestroy(transfer_end);
+   // cudaEventDestroy(compress_start);
+   // cudaEventDestroy(compress_end);
+   // cudaEventDestroy(transfer_start);
+    //cudaEventDestroy(transfer_end);
 
 		++runs;
 	}

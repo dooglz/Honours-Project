@@ -23,7 +23,7 @@ void compressor_cuda_bitreducer::DisableTiming() {
 }
 
 std::vector<std::string> compressor_cuda_bitreducer::TimingHeadders() {
-  return {"malloc", "reduce", "compact", "copyback"};
+  return {"malloc", "reduce", "compact", "copyback", "ratio"};
 }
 
 void Run_BitReduce(const dim3 a, const dim3 b, const uint32_t *input_array, uint32_t *intBuf,
@@ -154,6 +154,9 @@ void compressor_cuda_bitreducer::Compress(const uint32_t *gpuBuffer, const size_
   }
 
   const float ratio = (float)outSize / (float)(dataSize * sizeof(uint32_t));
+  if (timing) {
+    times->push_back((unsigned long long)(ratio*100.0f));
+  }
 }
 
 void compressor_cuda_bitreducer::Decompress() {}
