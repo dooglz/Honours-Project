@@ -1,5 +1,5 @@
-#include "cuda_utils.h"
 #include "exp_cuda_sort.h"
+#include "cuda_utils.h"
 #include "timer.h"
 #include "utils.h"
 #include <algorithm>
@@ -23,7 +23,7 @@ void RunSortKernel(dim3 blocks, dim3 threads, cudaStream_t stream, int *theArray
 #define DEFAULTPOWER 18
 #define VERIFY 0
 #define CUDATIME 1
-CudaSort::CudaSort() : CudaExperiment(1, 4, "CudaSort", "Sorts Things") {}
+CudaSort::CudaSort() : CudaExperiment(1, 4, "CudaSortParallel", "Sorts Things") {}
 
 CudaSort::~CudaSort() {}
 
@@ -122,7 +122,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
   }
 
   ResultFile r;
-  r.name = "GpuParallelCudaSort" + to_string(maxN) + "_" + to_string(optmode);
+  r.name = "CudaSortParallel" + to_string(maxN) + "_" + to_string(optmode);
   r.headdings = {"time_writebuffer"};
   r.attributes.push_back("Optimised Swapping mode, " + optmode);
 
@@ -274,7 +274,7 @@ void CudaSort::Start(unsigned int num_runs, const std::vector<int> options) {
         checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
         checkCudaErrors(cudaMemcpyAsync(&inBuffers[0][(maxNPC - swapsize)], gpu1SwapBuffer, a,
                                         cudaMemcpyHostToDevice, streams[1]));
-        // cudaDeviceSynchronize();
+// cudaDeviceSynchronize();
 #if CUDATIME
         checkCudaErrors(cudaEventRecord(time_swap_inner_events[3], streams[1]));
         // do this just so we can keep the same logic below

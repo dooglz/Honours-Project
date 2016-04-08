@@ -2,23 +2,24 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <vector>
-#include <assert.h>
 #include <CL/opencl.h>
+#include <assert.h>
+#include <vector>
 
 //
 #include "ezOptionParser.hpp"
 //
-#include "utils.h"
-#include "opencl_utils.h"
 #include "cuda_utils.h"
 #include "exp_cl_sort.h"
 #include "exp_cl_sort2.h"
-#include "exp_cuda_pingpong.h"
-#include "exp_cuda_sort.h"
 #include "exp_cpu_bit_reducer.h"
 #include "exp_cuda_compression.h"
+#include "exp_cuda_pingpong.h"
+#include "exp_cuda_sort.h"
+#include "exp_cuda_sort_single.h"
 #include "exp_gfc.h"
+#include "opencl_utils.h"
+#include "utils.h"
 using namespace std;
 
 void Usage(ez::ezOptionParser &opt) {
@@ -80,12 +81,13 @@ int main(int argc, const char *argv[]) {
   bool batch = false;
   if (opt.isSet("-b")) {
     batch = true;
-    cout << "Batch mode selected" <<endl;
+    cout << "Batch mode selected" << endl;
 
     opt.get("-b")->getInt(selectedExp);
     opt.get("-p")->getInt(selectedPlat);
     opt.get("-d")->getInts(selectedDevices);
-    cout << "Experiment: " << selectedExp << " selectedPlat: " << selectedPlat << " selectedDevices: #" << selectedDevices.size() << endl;
+    cout << "Experiment: " << selectedExp << " selectedPlat: " << selectedPlat
+         << " selectedDevices: #" << selectedDevices.size() << endl;
 
     if (opt.isSet("-e")) {
       cout << "Experiemnt options ";
@@ -108,7 +110,7 @@ int main(int argc, const char *argv[]) {
 
   // init cl
   cl::Init();
-  if (!batch){
+  if (!batch) {
     cl::PrintInfo();
   }
   std::vector<cl::CLDevice *> devices;
@@ -116,7 +118,7 @@ int main(int argc, const char *argv[]) {
 
   // init cuda
   cuda::Init();
-  if (!batch){
+  if (!batch) {
     cuda::PrintInfo();
   }
   // start menu system
@@ -125,14 +127,15 @@ int main(int argc, const char *argv[]) {
     std::cout << dev->short_name << "\n";
   }
   // create list of tests
-  Experiment *exps[7];
+  Experiment *exps[8];
   exps[0] = new Sort();
   exps[1] = new Sort2();
-  exps[2] = new CudaSort();
-  exps[3] = new Exp_Cuda_PingPong();
-  exps[4] = new Exp_Cpu_BitReducer();
-  exps[5] = new Exp_Cuda_Compression();
-  exps[6] = new Exp_Cuda_GFC();
+  exps[2] = new CudaSortSingle();
+  exps[3] = new CudaSort();
+  exps[4] = new Exp_Cuda_PingPong();
+  exps[5] = new Exp_Cpu_BitReducer();
+  exps[6] = new Exp_Cuda_Compression();
+  exps[7] = new Exp_Cuda_GFC();
   bool run = true;
 
   // main loop
@@ -150,12 +153,12 @@ int main(int argc, const char *argv[]) {
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
-      for (size_t i = 0; i < 7; i++) {
+      for (size_t i = 0; i < 8; i++) {
         cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t\t" << exps[i]->description
              << std::endl;
       }
       selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                              [](int i) { return (i >= 0 && i <= 7); });
+                                              [](int i) { return (i >= 0 && i <= 8); });
       if (selectedExp == 0) {
         run = false;
         break;
