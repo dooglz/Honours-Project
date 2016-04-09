@@ -90,8 +90,7 @@ __global__ void CompressionKernel(int dimensionalityd, unsigned long long *cbufd
 
 void RunGfCCompress(int blocks, int warpsperblock, cudaStream_t stream, int dimensionalityd,
                     unsigned long long *cbufd, unsigned char *dbufd, int *cutd, int *offd) {
-  CompressionKernel<<<blocks, WARPSIZE * warpsperblock>>>(dimensionalityd, cbufd, dbufd, cutd,
-                                                          offd);
+  CompressionKernel << <blocks, WARPSIZE * warpsperblock, 0,stream >> >(dimensionalityd, cbufd, dbufd, cutd, offd);
   // cudaDeviceSynchronize();
 }
 
