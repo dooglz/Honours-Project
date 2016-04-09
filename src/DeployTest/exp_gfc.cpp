@@ -258,7 +258,8 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     cout << "Speed: " << ((double)SIZE / 1024.0 / 1024.0) / ((double)(time_ms * 0.001f)) << "MB/s"
          << endl;
          */
-
+    cudaDeviceSynchronize();
+    cudaStreamSynchronize(stream);
     checkCudaErrors(cudaEventDestroy(event1));
     checkCudaErrors(cudaEventDestroy(event2));
     checkCudaErrors(cudaStreamDestroy(stream));
