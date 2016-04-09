@@ -13,11 +13,11 @@
 //#define SIZE 64 * 1024 * 1024 // 64mb total
 #define DEFAULTPOWER 18
 //#define SIZE 512
-Exp_Cuda_GFC::Exp_Cuda_GFC() : CudaExperiment(1, 2, "GFC float", "good compression") {}
+Exp_Cuda_GFC::Exp_Cuda_GFC() : CudaExperiment(1, 1, "GFC float", "good compression") {}
 Exp_Cuda_GFC::~Exp_Cuda_GFC() {}
 static vector<cuda::CudaDevice> CtxDevices;
-unsigned int Exp_Cuda_GFC::GetMinCu() { return 2; }
-unsigned int Exp_Cuda_GFC::GetMax() { return 2; }
+unsigned int Exp_Cuda_GFC::GetMinCu() { return 1; }
+unsigned int Exp_Cuda_GFC::GetMax() { return 1; }
 
 void RunGfCCompress(int blocks, int warpsperblock, cudaStream_t stream, int dimensionalityd,
                     unsigned long long *cbufd, unsigned char *dbufd, int *cutd, int *offd);
@@ -51,9 +51,12 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
   r.name = "cudaGFCComp" + to_string(SIZE);
   r.headdings = { "compressTimeNS","RatioX1000" };
 
+  checkCudaErrors(cudaSetDevice(CtxDevices[0].id));
+
   unsigned int runs = 0;
   running = true;
   should_run = true;
+  float time_ms = 0;
   while (ShouldRun() && runs < num_runs) {
     unsigned long long time;
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
@@ -157,7 +160,7 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     checkCudaErrors(cudaEventRecord(event2, stream));
     cudaDeviceSynchronize();
     cudaStreamSynchronize(stream);
-    float time_ms = 0;
+    
     checkCudaErrors(cudaEventElapsedTime(&time_ms, event1, event2));
     cudaDeviceSynchronize();
     getLastCudaError("GFC Kernel() execution failed.\n");
@@ -167,7 +170,7 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     if (cudaSuccess !=
         cudaMemcpy(off, offl, sizeof(int) * blocks * warpsperblock, cudaMemcpyDeviceToHost))
       fprintf(stderr, "copying of off from device failed\n");
-
+    /*
     std::ostringstream my_ss;
     FILE *pFile;
     pFile = fopen("myfile.bin", "wb");
@@ -183,7 +186,7 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     assert(1 == num);
     num = fwrite(&doublecnt, 4, 1, pFile);
     assert(1 == num);
-
+    */
     int blockcount = 0;
     uint32_t totalsize = 7;
 
