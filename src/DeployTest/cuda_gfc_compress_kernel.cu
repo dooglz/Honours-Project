@@ -130,7 +130,7 @@ __global__ void DecompressionKernel(int dimensionalityd, unsigned char *compress
       code = compressed_data_buffer_in[off + (lane >> 1)];
 
 //4352
-      printf(" %i ", start);
+     // printf(" %i ", start);
       return;
       ibufs[iindex] = code; //THIS line is crashing
       return;

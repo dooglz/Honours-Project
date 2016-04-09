@@ -82,8 +82,7 @@ void Sort::Start(unsigned int num_runs, const std::vector<int> options) {
     vector<unsigned long long> times;
     // printf(" thread Working\n");
     unsigned int percentDone = (unsigned int)(floor(((float)runs / (float)num_runs) * 100.0f));
-    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"
-         << std::flush;
+    cout << "\r" << Spinner(runs) << "\t" << runs << "\tPercent Done: " << percentDone << "%"<< std::flush;
 
     // make new numbers
     for (cl_uint i = 0; i < maxN; i++) {
