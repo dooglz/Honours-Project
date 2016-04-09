@@ -147,10 +147,10 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     */
 
     // copy CPU buffer contents to GPU
-    if (cudaSuccess != cudaMemcpy(cbufl, cbuf, sizeof(ull) * doubles, cudaMemcpyHostToDevice))
+    if (cudaSuccess != cudaMemcpyAsync(cbufl, cbuf, sizeof(ull)* doubles, cudaMemcpyHostToDevice, stream))
       fprintf(stderr, "copying of cbuf to device failed\n");
     if (cudaSuccess !=
-        cudaMemcpy(cutl, cut, sizeof(int) * blocks * warpsperblock, cudaMemcpyHostToDevice))
+        cudaMemcpyAsync(cutl, cut, sizeof(int) * blocks * warpsperblock, cudaMemcpyHostToDevice,stream))
       fprintf(stderr, "copying of cut to device failed\n");
 
     // CompressionKernel << <blocks, WARPSIZE*warpsperblock >> >();
