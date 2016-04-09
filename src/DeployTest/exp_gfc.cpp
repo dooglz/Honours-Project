@@ -158,18 +158,18 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
     RunGfCCompress(blocks, WARPSIZE, stream, dimensionality, cbufl, (unsigned char *)dbufl, cutl,
                    offl);
     checkCudaErrors(cudaEventRecord(event2, stream));
-    cudaDeviceSynchronize();
-    cudaStreamSynchronize(stream);
-    
-    checkCudaErrors(cudaEventElapsedTime(&time_ms, event1, event2));
-    cudaDeviceSynchronize();
     getLastCudaError("GFC Kernel() execution failed.\n");
    // fprintf(stderr, "Compresison done\n");
 
     // transfer offsets back to CPU
     if (cudaSuccess !=
-        cudaMemcpy(off, offl, sizeof(int) * blocks * warpsperblock, cudaMemcpyDeviceToHost))
+      cudaMemcpyAsync(off, offl, sizeof(int)* blocks * warpsperblock, cudaMemcpyDeviceToHost, stream))
       fprintf(stderr, "copying of off from device failed\n");
+
+    cudaDeviceSynchronize();
+    cudaStreamSynchronize(stream);
+    checkCudaErrors(cudaEventElapsedTime(&time_ms, event1, event2));
+
     /*
     std::ostringstream my_ss;
     FILE *pFile;
@@ -216,8 +216,8 @@ void Exp_Cuda_GFC::Start(unsigned int num_runs, const std::vector<int> options) 
         start = cut[i - 1];
       offset = ((start + 1) / 2 * 17);
       // transfer compressed data back to CPU by chunk
-      if (cudaSuccess != cudaMemcpy(dbuf + offset, dbufl + offset, sizeof(char) * off[i],
-                                    cudaMemcpyDeviceToHost)) {
+      if (cudaSuccess != cudaMemcpyAsync(dbuf + offset, dbufl + offset, sizeof(char)* off[i],
+        cudaMemcpyDeviceToHost, stream)) {
 
         fprintf(stderr, "copying of dbuf from device failed\n");
       }
