@@ -14,3 +14,8 @@ __kernel void hello(__global char *string) {
   string[12] = '!';
   string[13] = '\0';
 }
+
+__kernel void pointless(__global  unsigned int *dev_values) {
+	const unsigned int i = get_global_id(0);
+	dev_values[i] += 1;
+}

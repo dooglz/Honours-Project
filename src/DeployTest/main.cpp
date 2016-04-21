@@ -9,6 +9,7 @@
 //
 #include "ezOptionParser.hpp"
 //
+#include "exp_cl_pingpong.h"
 #include "cuda_utils.h"
 #include "exp_cl_sort.h"
 #include "exp_cl_sort2.h"
@@ -127,7 +128,7 @@ int main(int argc, const char *argv[]) {
     std::cout << dev->short_name << "\n";
   }
   // create list of tests
-  Experiment *exps[8];
+  Experiment *exps[9];
   exps[0] = new Sort();
   exps[1] = new Sort2();
   exps[2] = new CudaSortSingle();
@@ -136,12 +137,13 @@ int main(int argc, const char *argv[]) {
   exps[5] = new Exp_Cpu_BitReducer();
   exps[6] = new Exp_Cuda_Compression();
   exps[7] = new Exp_Cuda_GFC();
+  exps[8] = new CL_PingPong();
   bool run = true;
 
   // main loop
 
   if (batch) {
-    if (selectedExp < 0 || selectedExp > 7) { // todo better validation
+    if (selectedExp < 0 || selectedExp > 8) { // todo better validation
       cout << "Invalid Test" << std::endl;
       return 1;
     }
@@ -153,12 +155,12 @@ int main(int argc, const char *argv[]) {
       // print tests
       cout << "\nAvaialble Experiments:" << std::endl;
       cout << "\t0\tQuit" << std::endl;
-      for (size_t i = 0; i < 8; i++) {
+      for (size_t i = 0; i < 9; i++) {
         cout << "\t" << i + 1 << "\t" << exps[i]->name << "\t\t" << exps[i]->description
              << std::endl;
       }
       selectedExp = promptValidated<int, int>("Choose an Experiment: ",
-                                              [](int i) { return (i >= 0 && i <= 8); });
+                                              [](int i) { return (i >= 0 && i <= 9); });
       if (selectedExp == 0) {
         run = false;
         break;
